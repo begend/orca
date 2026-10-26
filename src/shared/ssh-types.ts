@@ -108,6 +108,15 @@ export type SshTargetCreateInput = Omit<
 >
 export type SshTargetUpdateInput = Partial<SshTargetCreateInput>
 
+/** Desktop listTargets row; hasSavedPassword is derived from the encrypted host-password store, never persisted. */
+export type SshTargetWithCredentialStatus = SshTarget & { hasSavedPassword?: boolean }
+
+/** Saved-password status for one target; the password itself never leaves main. */
+export type SshTargetPasswordStatus = {
+  configured: boolean
+  protection: 'sealed' | 'plaintext' | null
+}
+
 /** Public target identity and observed host metadata safe to mirror to a paired client. */
 export type SshTargetSummary = Pick<SshTarget, 'id' | 'label' | 'generation'> & {
   /** The SSH host's OS, when it has connected and the relay has detected it. */

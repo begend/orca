@@ -3,7 +3,8 @@ import { Loader2, MoreHorizontal, Pencil, PlugZap, Trash2 } from 'lucide-react'
 import type {
   SshConnectionState,
   SshConnectionStatus,
-  SshTarget
+  SshTarget,
+  SshTargetWithCredentialStatus
 } from '../../../../shared/ssh-types'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -58,7 +59,7 @@ export function statusColor(status: SshConnectionStatus): string {
 }
 
 type SshTargetCardProps = {
-  target: SshTarget
+  target: SshTargetWithCredentialStatus
   state: SshConnectionState | undefined
   testing: boolean
   busyAction?: SshTargetBusyAction
@@ -223,6 +224,15 @@ export function SshTargetCard({
               <>
                 {' '}
                 <span className="px-0.5">·</span> <span className="font-mono">{keyName}</span>
+              </>
+            ) : null}
+            {target.hasSavedPassword ? (
+              <>
+                {' '}
+                <span className="px-0.5">·</span>{' '}
+                <span className="font-mono">
+                  {translate('auto.components.settings.SshTargetCard.savedPassword', 'password')}
+                </span>
               </>
             ) : null}
           </span>

@@ -195,3 +195,74 @@ describe('SshConnectionManager on a password host', () => {
     expect(onCredentialRequest).toHaveBeenCalledTimes(2)
   })
 })
+
+describe('SshConnectionManager with a saved host password', () => {
+  const onCredentialRequest = vi.fn(async () => 'typed-password')
+  let manager: SshConnectionManager
+
+  beforeEach(async () => {
+    resetSshConnectionMocks()
+    resetSshCredentialDeclinesForTests()
+    vi.stubEnv('SSH_AUTH_SOCK', '')
+    onCredentialRequest.mockClear()
+    manager = new SshConnectionManager(createCallbacks({ onCredentialRequest }))
+    manager.setSavedPasswordResolver((targetId) =>
+      targetId === 'target-1' ? 'saved-password' : null
+    )
+  })
+
+  afterEach(async () => {
+    manager.setSavedPasswordResolver(null)
+    await manager.disconnectAll()
+  })
+
+  it('signs in with the saved password without prompting', async () => {
+    ssh2Mock.connectSequence = ['ready']
+    await manager.connect(createTarget())
+
+    expect(onCredentialRequest).not.toHaveBeenCalled()
+    expect(lastConnectPassword()).toBe('saved-password')
+  })
+
+  it('recovers through the prompt when the saved password is stale', async () => {
+    ssh2Mock.connectSequence = [authFailure(), 'ready']
+    await manager.connect(createTarget())
+
+    expect(onCredentialRequest).toHaveBeenCalledTimes(1)
+    expect(lastConnectPassword()).toBe('typed-password')
+  })
+
+  it('prefers the verified handoff over a store-seeded password', async () => {
+    ssh2Mock.connectSequence = ['ready']
+    await manager.connect(createTarget())
+    await manager.disconnectConnection('target-1', manager.getConnection('target-1')!)
+
+    manager.setSavedPasswordResolver(() => 'store-password')
+    ssh2Mock.connectSequence = ['ready']
+    await manager.connect(createTarget())
+
+    expect(lastConnectPassword()).toBe('saved-password')
+    expect(onCredentialRequest).not.toHaveBeenCalled()
+  })
+
+  it('connects without a seed when the store has no password', async () => {
+    manager.setSavedPasswordResolver(() => null)
+    ssh2Mock.connectSequence = [authFailure(), 'ready']
+    await manager.connect(createTarget())
+
+    expect(onCredentialRequest).toHaveBeenCalledTimes(1)
+    expect(lastConnectPassword()).toBe('typed-password')
+  })
+
+  it('auto-answers keyboard-interactive with the saved password', async () => {
+    ssh2Mock.connectSequence = ['silent']
+    void manager.connect(createTarget()).catch(() => {})
+    await vi.waitFor(() =>
+      expect(eventHandlers.get('keyboard-interactive')?.size ?? 0).toBeGreaterThan(0)
+    )
+    const passwordPrompt = [{ prompt: 'Password: ', echo: false }]
+    const autoAnswered = vi.fn()
+    emitSshEvent('keyboard-interactive', '', '', '', passwordPrompt, autoAnswered)
+    await vi.waitFor(() => expect(autoAnswered).toHaveBeenCalledWith(['saved-password']))
+  })
+})

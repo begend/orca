@@ -8,6 +8,7 @@ import {
   isCurrentConnectAttempt
 } from './ssh-connect-attempt-registry'
 import { connectionManager, persistedStore, portForwardManager } from './ssh-ipc-context'
+import { getSshHostPasswordStore } from './ssh-host-password-handlers'
 import { runTargetLifecycle } from './ssh-target-lifecycle-queue'
 import { forgetPortForwardRestoreState } from './ssh-managed-port-forward-restore'
 import { errorMessage } from '../../../shared/error-message'
@@ -37,6 +38,7 @@ export async function removeRegisteredSshTarget(targetId: string): Promise<void>
       console.warn(`[ssh] Failed to disconnect removed target ${targetId}: ${errorMessage(err)}`)
     }
     persistedStore?.removeSshRemotePtyLeases(targetId)
+    getSshHostPasswordStore()?.clear(targetId)
     forgetLegacyRelayTarget(targetId)
     store.removeTarget(targetId)
     // Target removal also retires its scoped browser cookie storage.

@@ -39,6 +39,8 @@ export type Ssh2CredentialFallbackHost = {
   /** Caches a typed passphrase; it stays unproven until the host accepts it. */
   setCachedPassphrase: (value: string) => void
   setCachedPassword: (value: string) => void
+  /** Drops a disk-restored password the host just rejected; returns false for typed or proven ones. */
+  clearUnprovenSavedPassword: () => boolean
   isKeyboardInteractiveCancelled: () => boolean
   isCurrentAttempt: () => boolean
   connect: (config: ConnectConfig) => Promise<void>
@@ -254,6 +256,8 @@ export async function recoverFailedSsh2Attempt(
     }
   }
   // Agent failures can fall back to password only on the selected no-agent config.
+  // A store-seeded password the host rejected must not suppress this interactive fallback.
+  host.clearUnprovenSavedPassword()
   if (isAgentFallbackError(authError) && !host.cachedPassword()) {
     const val = await host.requestCredential('password', config.host || host.target.label)
     if (val) {

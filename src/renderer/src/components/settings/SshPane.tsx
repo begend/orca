@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import type { SshTarget } from '../../../../shared/ssh-types'
+import type { SshTarget, SshTargetWithCredentialStatus } from '../../../../shared/ssh-types'
 import { useAppStore } from '@/store'
 import { toastSshConnectFailure } from '@/ssh/ssh-connect-failure-toast'
 import { useMountedRef } from '@/hooks/useMountedRef'
@@ -37,7 +37,7 @@ export { getSshPaneSearchEntries } from './ssh-search'
 type SshPaneProps = { addTargetIntentSignal?: number }
 
 export function SshPane({ addTargetIntentSignal }: SshPaneProps): React.JSX.Element {
-  const [targets, setTargets] = useState<SshTarget[]>([])
+  const [targets, setTargets] = useState<SshTargetWithCredentialStatus[]>([])
   // Reuse globally hydrated SSH state instead of duplicate listeners and per-target IPC reads.
   const sshConnectionStates = useAppStore((s) => s.sshConnectionStates)
   const recordFeatureInteraction = useAppStore((s) => s.recordFeatureInteraction)
@@ -80,7 +80,7 @@ export function SshPane({ addTargetIntentSignal }: SshPaneProps): React.JSX.Elem
   const loadTargets = useCallback(
     async (opts?: { signal?: AbortSignal }) => {
       try {
-        const result = (await window.api.ssh.listTargets()) as SshTarget[]
+        const result = await window.api.ssh.listTargets()
         if (opts?.signal?.aborted || !mountedRef.current) {
           return
         }
@@ -131,11 +131,30 @@ export function SshPane({ addTargetIntentSignal }: SshPaneProps): React.JSX.Elem
     setSaving(true)
 
     try {
+      let savedTargetId = editingId
       if (editingId) {
         await window.api.ssh.updateTarget({ id: editingId, updates: savePayload.payload.updates })
       } else {
         const result = await window.api.ssh.addTarget({ target: savePayload.payload.target })
         useAppStore.getState().recordSshRepoReadoptions(result.repoReadoptions)
+        savedTargetId = result.target.id
+      }
+      // The password rides a dedicated channel; a failed store leaves the host saved without one-click sign-in.
+      const password = form.password.trim()
+      if (savedTargetId !== null && password !== '') {
+        try {
+          await window.api.ssh.saveTargetPassword({ targetId: savedTargetId, password })
+        } catch (err) {
+          toast.error(
+            extractIpcErrorMessage(
+              err,
+              translate(
+                'auto.components.settings.SshPane.passwordSaveFailed',
+                'Host saved, but storing the password failed.'
+              )
+            )
+          )
+        }
       }
       recordFeatureInteraction('ssh')
       if (!mountedRef.current) {
@@ -224,6 +243,33 @@ export function SshPane({ addTargetIntentSignal }: SshPaneProps): React.JSX.Elem
     setEditingId(target.id)
     setForm(getEditingTargetForSshTarget(target))
     setShowForm(true)
+  }
+
+  const handleClearSavedPassword = async (targetId: string): Promise<void> => {
+    try {
+      await window.api.ssh.clearTargetPassword({ targetId })
+      if (mountedRef.current) {
+        toast.success(
+          translate(
+            'auto.components.settings.SshPane.savedPasswordCleared',
+            'Saved password cleared'
+          )
+        )
+      }
+      await loadTargets()
+    } catch (err) {
+      if (mountedRef.current) {
+        toast.error(
+          extractIpcErrorMessage(
+            err,
+            translate(
+              'auto.components.settings.SshPane.passwordClearFailed',
+              'Failed to clear the saved password'
+            )
+          )
+        )
+      }
+    }
   }
 
   const handleConnect = async (targetId: string): Promise<void> => {
@@ -338,8 +384,15 @@ export function SshPane({ addTargetIntentSignal }: SshPaneProps): React.JSX.Elem
         editingId={editingId}
         form={form}
         saving={saving}
+        hasSavedPassword={
+          editingId !== null &&
+          targets.find((target) => target.id === editingId)?.hasSavedPassword === true
+        }
         onFormChange={setForm}
         onSave={() => void handleSave()}
+        onClearSavedPassword={
+          editingId !== null ? () => void handleClearSavedPassword(editingId) : undefined
+        }
         onOpenChange={(nextOpen) => {
           if (!nextOpen) {
             cancelForm()

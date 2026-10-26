@@ -8,6 +8,8 @@ export type EditingTarget = {
   port: string
   username: string
   identityFile: string
+  /** Optional sign-in password; it travels a dedicated channel and never enters a target payload. */
+  password: string
   gssapiAuthentication: boolean
   proxyCommand: string
   jumpHost: string
@@ -23,6 +25,7 @@ export const EMPTY_FORM: EditingTarget = {
   port: '22',
   username: '',
   identityFile: '',
+  password: '',
   gssapiAuthentication: false,
   proxyCommand: '',
   jumpHost: '',
@@ -41,6 +44,8 @@ export function getEditingTargetForSshTarget(target: SshTarget): EditingTarget {
     port: String(target.port),
     username: target.username,
     identityFile: target.identityFile ?? '',
+    // Never prefill the stored secret; an empty field leaves the saved password untouched.
+    password: '',
     gssapiAuthentication: target.gssapiAuthentication === true,
     proxyCommand: target.proxyCommand ?? '',
     jumpHost: target.jumpHost ?? '',
@@ -163,6 +168,7 @@ export function isSshTargetFormDirty(current: EditingTarget, baseline: EditingTa
     current.port !== baseline.port ||
     current.username !== baseline.username ||
     current.identityFile !== baseline.identityFile ||
+    current.password !== baseline.password ||
     current.gssapiAuthentication !== baseline.gssapiAuthentication ||
     current.proxyCommand !== baseline.proxyCommand ||
     current.jumpHost !== baseline.jumpHost ||

@@ -20,6 +20,7 @@ import type {
 } from '../ipc/pty/host-env/types'
 import { registerDaemonManagementHandlers } from '../ipc/pty/pty-management'
 import { registerSshHandlers } from '../ipc/ssh/ssh'
+import { mainProcessState } from '../startup/main-process-state'
 import { browserManager } from '../browser/browser-manager'
 import { hasSystemMediaAccess, requestSystemMediaAccess } from '../browser/browser-media-access'
 import type { OrcaRuntimeService, RuntimeWorktreeLifecycleEvent } from '../runtime/orca-runtime'
@@ -124,7 +125,9 @@ export function attachMainWindowServices(
   } else {
     void hydrateLocalPtyRegistryAtBoot(store)
   }
-  registerSshHandlers(store, () => mainWindow, runtime)
+  registerSshHandlers(store, () => mainWindow, runtime, {
+    sshPasswordsDirectory: mainProcessState.activeOrcaProfile?.profileDirectory
+  })
   registerDroppedPathPreparation(mainWindow, async () => {
     await ensureStructuredAgentSessionHostUnlessRefused(() =>
       runtime.ensureStructuredAgentSessionHost()

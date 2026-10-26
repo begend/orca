@@ -80,6 +80,12 @@ import {
 /** The sign-in a connection holds in memory, handed to the connection that replaces it. */
 export type SshCachedCredentials = { password: string | null; passphrase: string | null }
 
+/** Initial state for a new connection: a verified handoff, or an unproven password restored from disk. */
+export type SshConnectionSeed = {
+  credentials?: SshCachedCredentials
+  savedPassword?: string
+}
+
 const SSH_KEYBOARD_INTERACTIVE_MAX_PROMPTS = 8
 
 export class SshConnection {
@@ -114,6 +120,8 @@ export class SshConnection {
   private cachedPassword: string | null = null
   // Only a sign-in the host accepted may be handed on; a typed or re-asked one is unproven until then.
   private signInVerified = false
+  // Marks a cachedPassword restored from the on-disk store; the fallback ladder drops it before prompting so a rejected seed cannot suppress the dialog.
+  private savedPasswordSeeded = false
   private keyboardInteractiveCancelled = false
   private openCredentialPrompts = 0
   // A rejected cached password must reach the user on the next round.
@@ -121,16 +129,18 @@ export class SshConnection {
   private hostKeyFingerprint: string | undefined
   private connectGeneration = 0
 
-  constructor(
-    target: SshTarget,
-    callbacks: SshConnectionCallbacks,
-    credentials?: SshCachedCredentials
-  ) {
+  constructor(target: SshTarget, callbacks: SshConnectionCallbacks, seed?: SshConnectionSeed) {
     this.target = target
     this.callbacks = callbacks
+    const credentials = seed?.credentials
     this.cachedPassword = credentials?.password ?? null
     this.cachedPassphrase = credentials?.passphrase ?? null
     this.signInVerified = credentials !== undefined
+    // A verified handoff wins; the store seed only fills a missing password.
+    if (this.cachedPassword === null && seed?.savedPassword) {
+      this.cachedPassword = seed.savedPassword
+      this.savedPasswordSeeded = true
+    }
     this.reconnector = new SshConnectionReconnector(this.reconnectHost())
     this.state = {
       targetId: target.id,
@@ -209,6 +219,16 @@ export class SshConnection {
       return null
     }
     return { password: this.cachedPassword, passphrase: this.cachedPassphrase }
+  }
+
+  /** Drop a store-seeded password the host just rejected; a typed or proven one is kept. */
+  private clearUnprovenSavedPassword(): boolean {
+    if (!this.savedPasswordSeeded || this.signInVerified || this.cachedPassword === null) {
+      return false
+    }
+    this.cachedPassword = null
+    this.savedPasswordSeeded = false
+    return true
   }
 
   exec(cmd: string, options?: SshExecOptions): Promise<ClientChannel> {
@@ -397,6 +417,7 @@ export class SshConnection {
         setCachedPassword: (value) => {
           if (isCurrent()) {
             this.cachedPassword = value
+            this.savedPasswordSeeded = false
             this.signInVerified = false
           }
         },
@@ -505,8 +526,10 @@ export class SshConnection {
       },
       setCachedPassword: (value) => {
         this.cachedPassword = value
+        this.savedPasswordSeeded = false
         this.signInVerified = false
       },
+      clearUnprovenSavedPassword: () => this.clearUnprovenSavedPassword(),
       isKeyboardInteractiveCancelled: () => this.keyboardInteractiveCancelled,
       isCurrentAttempt: () => this.isCurrentConnectAttempt(connectGeneration),
       connect: (config) => this.doSsh2Connect(config, connectGeneration),
@@ -884,6 +907,10 @@ export class SshConnection {
   private setState(status: SshConnectionStatus, error?: string): void {
     if (status === 'auth-failed' || status === 'connected') {
       this.signInVerified = status === 'connected'
+      if (status === 'connected') {
+        // The host accepted the seed; it now behaves exactly like a typed, verified password.
+        this.savedPasswordSeeded = false
+      }
     }
     this.state = {
       ...this.state,

@@ -24,6 +24,7 @@ import {
   isRuntimeOwnedSshTarget
 } from '../../ssh/connection/ssh-connection-store'
 import { connectionManager, getCurrentMainWindow } from './ssh-ipc-context'
+import { getSshHostPasswordStore } from './ssh-host-password-handlers'
 import { runTargetLifecycle } from './ssh-target-lifecycle-queue'
 import { fingerprintRuntimeSshTarget } from '../../ssh/runtime-ssh-target-fingerprint'
 import { removeRegisteredSshTarget } from './ssh-session-teardown'
@@ -148,7 +149,15 @@ export function registerSshTargetCrudHandlers(): void {
   setSshTargetMutations({ add: addSshTarget, update: updateSshTarget, remove: removeSshTarget })
 
   ipcMain.handle('ssh:listTargets', () => {
-    return getSshTargetRegistryStore()!.listTargets()
+    const targets = getSshTargetRegistryStore()!.listTargets()
+    const sshPasswords = getSshHostPasswordStore()
+    if (!sshPasswords) {
+      return targets
+    }
+    // hasSavedPassword is a non-secret decoration for the renderer; it is never persisted.
+    return targets.map((target) =>
+      sshPasswords.has(target.id) ? { ...target, hasSavedPassword: true } : target
+    )
   })
 
   ipcMain.handle('ssh:listRemovedTargetLabels', () => {

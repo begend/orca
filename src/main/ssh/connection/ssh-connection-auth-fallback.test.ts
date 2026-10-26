@@ -568,4 +568,52 @@ describe('SshConnection', () => {
       rmSync(tempDir, { recursive: true, force: true })
     }
   })
+
+  describe('with a store-seeded saved password', () => {
+    beforeEach(() => {
+      // No agent: the seeded password is the only credential on the initial ladder.
+      vi.stubEnv('SSH_AUTH_SOCK', '')
+    })
+
+    it('signs in with the seed and never prompts', async () => {
+      ssh2Mock.connectSequence = ['ready']
+      const onCredentialRequest = vi.fn(async () => 'typed-password')
+      const conn = new SshConnection(createTarget(), createCallbacks({ onCredentialRequest }), {
+        savedPassword: 'saved-password'
+      })
+
+      await conn.connect()
+
+      expect(onCredentialRequest).not.toHaveBeenCalled()
+      expect(clientInstances[0].lastConnectConfig).toMatchObject({
+        password: 'saved-password'
+      })
+    })
+
+    it('reaches the interactive password prompt when the host rejects the seed', async () => {
+      // A seeded password must not suppress the final fallback prompt (it did before clearUnprovenSavedPassword).
+      ssh2Mock.connectSequence = [
+        new Error('All configured authentication methods failed'),
+        'ready'
+      ]
+      const onCredentialRequest = vi.fn(async () => 'typed-password')
+      const conn = new SshConnection(createTarget(), createCallbacks({ onCredentialRequest }), {
+        savedPassword: 'stale-password'
+      })
+
+      await conn.connect()
+
+      expect(onCredentialRequest).toHaveBeenCalledTimes(1)
+      expect(onCredentialRequest).toHaveBeenCalledWith(
+        'target-1',
+        'password',
+        'example.com',
+        undefined,
+        expect.any(AbortSignal)
+      )
+      expect(clientInstances[1].lastConnectConfig).toMatchObject({
+        password: 'typed-password'
+      })
+    })
+  })
 })

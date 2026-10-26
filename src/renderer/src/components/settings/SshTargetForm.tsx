@@ -27,8 +27,11 @@ type SshTargetFormProps = {
   editingId: string | null
   form: EditingTarget
   saving: boolean
+  /** Editing only: the host already has a stored password for one-click sign-in. */
+  hasSavedPassword?: boolean
   onFormChange: (updater: (prev: EditingTarget) => EditingTarget) => void
   onSave: () => void
+  onClearSavedPassword?: () => void
   onOpenChange: (open: boolean) => void
 }
 
@@ -48,8 +51,10 @@ export function SshTargetForm({
   editingId,
   form,
   saving,
+  hasSavedPassword = false,
   onFormChange,
   onSave,
+  onClearSavedPassword,
   onOpenChange
 }: SshTargetFormProps): React.JSX.Element {
   // Reveal custom advanced values per open/edit session; the mounted form must not retain cancelled disclosure state.
@@ -208,6 +213,43 @@ export function SshTargetForm({
                   min={1}
                   max={65535}
                 />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="ssh-target-password">
+                  {translate('auto.components.settings.SshTargetForm.password', 'Password')}
+                </Label>
+                <Input
+                  id="ssh-target-password"
+                  type="password"
+                  autoComplete="off"
+                  value={form.password}
+                  onChange={(e) => onFormChange((f) => ({ ...f, password: e.target.value }))}
+                  placeholder={translate(
+                    'auto.components.settings.SshTargetForm.passwordPlaceholder',
+                    'Optional — stored encrypted for one-click sign-in'
+                  )}
+                />
+                {isEditing && hasSavedPassword && form.password.trim() === '' ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    {translate(
+                      'auto.components.settings.SshTargetForm.savedPasswordHint',
+                      'A saved password signs this host in automatically; leave empty to keep it.'
+                    )}{' '}
+                    {onClearSavedPassword ? (
+                      <button
+                        type="button"
+                        className="underline underline-offset-2 hover:text-foreground"
+                        disabled={saving}
+                        onClick={onClearSavedPassword}
+                      >
+                        {translate(
+                          'auto.components.settings.SshTargetForm.clearSavedPassword',
+                          'Clear saved password'
+                        )}
+                      </button>
+                    ) : null}
+                  </p>
+                ) : null}
               </div>
               <div className="col-span-2 space-y-1.5">
                 <Label htmlFor="ssh-target-identity" className="flex items-center gap-1.5">

@@ -23,6 +23,8 @@ export class SshConnectionManager {
     { endpoint: string; credentials: SshCachedCredentials }
   >()
   private callbacks: SshConnectionCallbacks
+  /** Reads the on-disk saved password for one-click sign-in; unset (tests, embeds) disables seeding. */
+  private resolveSavedPassword: ((targetId: string) => string | null) | null = null
   // Attempt tokens let replacement connect proceed without stale cancellation clearing its state.
   private connectingTargets = new Map<string, symbol>()
 
@@ -35,6 +37,10 @@ export class SshConnectionManager {
     for (const connection of this.connections.values()) {
       connection.setCallbacks(callbacks)
     }
+  }
+
+  setSavedPasswordResolver(resolver: ((targetId: string) => string | null) | null): void {
+    this.resolveSavedPassword = resolver
   }
 
   /** `probe`: a user's connection test, which a Disconnect does not refuse. */
@@ -72,7 +78,17 @@ export class SshConnectionManager {
         }
       }
 
-      const conn = new SshConnection(target, this.callbacks, this.takeRetainedSignIn(target))
+      const retained = this.takeRetainedSignIn(target)
+      // A verified handoff wins; otherwise a saved password seeds one-click sign-in. System-ssh
+      // transports (ProxyCommand/Jump/security keys) ignore the ssh2 seed and keep prompting.
+      const savedPassword =
+        retained || !this.resolveSavedPassword
+          ? undefined
+          : (this.resolveSavedPassword(target.id) ?? undefined)
+      const conn = new SshConnection(target, this.callbacks, {
+        ...(retained ? { credentials: retained } : {}),
+        ...(savedPassword ? { savedPassword } : {})
+      })
       recordSshConnectionOpened(conn)
       this.connections.set(target.id, conn)
 

@@ -151,6 +151,10 @@ export function createSshApi(): NonNullable<Partial<PreloadApi>['ssh']> {
     updateTarget: () =>
       Promise.reject(new Error('SSH target management is unavailable in the web client.')),
     removeTarget: () => Promise.resolve(),
+    // Passwords live only on the desktop that owns the host; the web client never stores them.
+    saveTargetPassword: () =>
+      Promise.reject(new Error('SSH target management is unavailable in the web client.')),
+    clearTargetPassword: () => Promise.resolve(),
     importConfig: () => Promise.resolve({ targets: [], repoReadoptions: [] }),
     listConfigHosts: () =>
       Promise.resolve({

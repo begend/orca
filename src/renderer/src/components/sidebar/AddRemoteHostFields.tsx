@@ -104,6 +104,25 @@ export function SshHostFields({
           placeholder="22"
         />
       </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="add-ssh-password">
+          {translate('auto.components.sidebar.AddRemoteHostDialog.password', 'Password')}
+        </Label>
+        <Input
+          id="add-ssh-password"
+          type="password"
+          autoComplete="off"
+          value={form.password}
+          disabled={disabled}
+          onChange={(event) =>
+            onFormChange((draft) => ({ ...draft, password: event.target.value }))
+          }
+          placeholder={translate(
+            'auto.components.sidebar.AddRemoteHostDialog.passwordPlaceholder',
+            'Optional — stored encrypted for one-click sign-in'
+          )}
+        />
+      </div>
       <div className="space-y-1.5 sm:col-span-2">
         <Label htmlFor="add-ssh-identity-file">
           {translate('auto.components.sidebar.AddRemoteHostDialog.identityFile', 'Identity file')}

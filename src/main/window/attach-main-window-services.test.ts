@@ -225,7 +225,9 @@ describe('attachMainWindowServices', () => {
     expect(registerSshHandlersMock).toHaveBeenCalledExactlyOnceWith(
       store,
       expect.any(Function),
-      runtime
+      runtime,
+      // No active profile in this harness, so password storage stays disabled.
+      { sshPasswordsDirectory: undefined }
     )
     expect(registerSshHandlersMock.mock.calls[0]?.[1]()).toBe(mainWindow)
     expect(registerDaemonManagementHandlersMock).toHaveBeenCalledExactlyOnceWith()

@@ -6902,7 +6902,10 @@
           "identityFileFromConfigHint": "Left empty on purpose: Orca uses every key ~/.ssh/config resolves for {{value0}}. Type a path to use just that key.",
           "sshConfigPickerRetry": "Try again",
           "sshConfigPickerResolving": "Reading…",
-          "pairingHelpShareComputer": "Create this under Settings → Remote Orca Servers → Share this computer on the other computer."
+          "pairingHelpShareComputer": "Create this under Settings → Remote Orca Servers → Share this computer on the other computer.",
+          "password": "Password",
+          "passwordPlaceholder": "Optional — stored encrypted for one-click sign-in",
+          "sshPasswordSaveFailed": "Host added, but storing the password failed."
         },
         "ForgetSshWorkspaceDialog": {
           "reconnectFailed": "Reconnection failed",
@@ -9234,7 +9237,10 @@
           "syncedServerPlural": "Synced {{count}} servers",
           "noFilterMatch": "No hosts match.",
           "addHost": "Add host",
-          "alreadyInSync": "~/.ssh/config already in sync"
+          "alreadyInSync": "~/.ssh/config already in sync",
+          "passwordSaveFailed": "Host saved, but storing the password failed.",
+          "savedPasswordCleared": "Saved password cleared",
+          "passwordClearFailed": "Failed to clear the saved password"
         },
         "SshPassphraseDialog": {
           "d5a234456f": "Cancel",
@@ -9273,7 +9279,8 @@
           "moreActions": "More actions for {{label}}",
           "testConnection": "Test connection",
           "edit": "Edit…",
-          "remove": "Remove…"
+          "remove": "Remove…",
+          "savedPassword": "password"
         },
         "SshTargetDestructiveActions": {
           "3bb0cf0ee4": "This will remove the target and end any active remote terminals.",
@@ -9323,7 +9330,11 @@
           "editDescription": "Update connection details for this machine. Changes apply on next connect.",
           "addDescription": "Add a persistent machine you can log into over SSH.",
           "editingPrefix": "Editing",
-          "addHost": "Add host"
+          "addHost": "Add host",
+          "password": "Password",
+          "passwordPlaceholder": "Optional — stored encrypted for one-click sign-in",
+          "savedPasswordHint": "A saved password signs this host in automatically; leave empty to keep it.",
+          "clearSavedPassword": "Clear saved password"
         },
         "TasksPane": {
           "f71d8a9dd3": "Task Providers",

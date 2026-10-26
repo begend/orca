@@ -10,12 +10,14 @@ import type {
   SshTarget,
   SshTargetAddResult,
   SshTargetCreateInput,
-  SshTargetUpdateInput
+  SshTargetPasswordStatus,
+  SshTargetUpdateInput,
+  SshTargetWithCredentialStatus
 } from '../../shared/ssh-types'
 import type { FilesystemPathFlavor } from '../../shared/filesystem-entry-types'
 
 export type SshApi = {
-  listTargets: () => Promise<SshTarget[]>
+  listTargets: () => Promise<SshTargetWithCredentialStatus[]>
   // Last known labels keyed by removed target ID, for workspaces still pinned to them.
   listRemovedTargetLabels: () => Promise<Record<string, string>>
   addTarget: (args: { target: SshTargetCreateInput }) => Promise<SshTargetAddResult>
@@ -86,4 +88,10 @@ export type SshApi = {
   ) => () => void
   onCredentialResolved: (callback: (data: { requestId: string }) => void) => () => void
   submitCredential: (args: { requestId: string; value: string | null }) => Promise<void>
+  /** Saves (or, when empty, clears) this host's password for one-click sign-in. */
+  saveTargetPassword: (args: {
+    targetId: string
+    password: string
+  }) => Promise<SshTargetPasswordStatus>
+  clearTargetPassword: (args: { targetId: string }) => Promise<void>
 }

@@ -9,6 +9,7 @@ import {
   runSshTestConnectionProbe
 } from './ssh-connect-attempt-registry'
 import { connectTarget } from './ssh-connect-flow'
+import { getSshHostPasswordStore } from './ssh-host-password-handlers'
 import { connectionManager } from './ssh-ipc-context'
 import { getPublicSshState } from './ssh-renderer-broadcast'
 import { disconnectSshHostForUser } from './ssh-host-user-disconnect'
@@ -43,6 +44,10 @@ export function registerSshConnectionHandlers(): void {
     }
     const target = getSshTargetRegistryStore()!.getTarget(args.targetId)
     if (!target?.lastRequiredPassphrase) {
+      return false
+    }
+    // A saved password will seed the connect; do not defer the host behind a stale flag.
+    if (getSshHostPasswordStore()?.has(args.targetId)) {
       return false
     }
     return !connectionManager!.hasCachedCredential(target)

@@ -8,7 +8,9 @@ import type {
   SshTargetAddResult,
   SshTargetCreateInput,
   SshTarget,
+  SshTargetPasswordStatus,
   SshTargetUpdateInput,
+  SshTargetWithCredentialStatus,
   PortForwardEntry,
   UnrestoredPortForward,
   EnrichedDetectedPort
@@ -21,7 +23,8 @@ import type { FilesystemPathFlavor } from '../../shared/filesystem-entry-types'
 import type { PreloadApi } from '../api-types'
 
 export const sshApi = {
-  listTargets: (): Promise<SshTarget[]> => ipcRenderer.invoke('ssh:listTargets'),
+  listTargets: (): Promise<SshTargetWithCredentialStatus[]> =>
+    ipcRenderer.invoke('ssh:listTargets'),
 
   listRemovedTargetLabels: (): Promise<Record<string, string>> =>
     ipcRenderer.invoke('ssh:listRemovedTargetLabels'),
@@ -194,5 +197,13 @@ export const sshApi = {
   },
 
   submitCredential: (args: { requestId: string; value: string | null }): Promise<void> =>
-    ipcRenderer.invoke('ssh:submitCredential', args)
+    ipcRenderer.invoke('ssh:submitCredential', args),
+
+  saveTargetPassword: (args: {
+    targetId: string
+    password: string
+  }): Promise<SshTargetPasswordStatus> => ipcRenderer.invoke('ssh:saveTargetPassword', args),
+
+  clearTargetPassword: (args: { targetId: string }): Promise<void> =>
+    ipcRenderer.invoke('ssh:clearTargetPassword', args)
 } satisfies PreloadApi['ssh']

@@ -28,6 +28,8 @@ type SshApi = {
     targets: SshTarget[]
     repoReadoptions: SshRepoReadoption[]
   }>
+  /** Desktop-only capability; paired-server clients omit it, keeping password storage local. */
+  saveTargetPassword?: (args: { targetId: string; password: string }) => Promise<unknown>
 }
 
 type SavedSshHost = Pick<SshTarget, 'configHost' | 'label' | 'host'>
@@ -45,7 +47,8 @@ export async function saveNewSshHostFromForm<T extends SavedSshHost>({
     listTargets: () => Promise<T[]>
     addTarget: (args: {
       target: SshTargetCreateInput
-    }) => Promise<{ repoReadoptions: SshRepoReadoption[] }>
+    }) => Promise<{ repoReadoptions: SshRepoReadoption[]; target?: { id: string } }>
+    saveTargetPassword?: (args: { targetId: string; password: string }) => Promise<unknown>
   }
   recordSshRepoReadoptions: (readoptions: readonly SshRepoReadoption[]) => void
   setSshTargetsMetadata: (targets: T[]) => void
@@ -112,6 +115,22 @@ export async function saveNewSshHostFromForm<T extends SavedSshHost>({
 
     const result = await ssh.addTarget({ target })
     recordSshRepoReadoptions(result.repoReadoptions)
+    // The password rides a dedicated channel; a failure leaves the host saved without one-click sign-in.
+    const password = form.password.trim()
+    if (password !== '' && result.target?.id && typeof ssh.saveTargetPassword === 'function') {
+      try {
+        await ssh.saveTargetPassword({ targetId: result.target.id, password })
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : translate(
+                'auto.components.sidebar.AddRemoteHostDialog.sshPasswordSaveFailed',
+                'Host added, but storing the password failed.'
+              )
+        )
+      }
+    }
     setSshTargetsMetadata(await ssh.listTargets())
     recordFeatureInteraction('ssh')
     toast.success(

@@ -32,6 +32,11 @@ import { createSshConnectionCallbacks } from './ssh-connection-state-callbacks'
 import { resetSshCredentialDeclinesForTests } from '../../ssh/ssh-credential-decline'
 import { resetSshUserDisconnectsForTests } from '../../ssh/ssh-user-disconnect'
 import { registerSshConnectionHandlers } from './ssh-connection-handlers'
+import {
+  registerSshHostPasswordHandlers,
+  setSshHostPasswordStore
+} from './ssh-host-password-handlers'
+import { createSshHostPasswordStore } from '../../ssh/ssh-host-password-store'
 import { registerPlainSshTerminalHandlers } from './plain-ssh-terminal-handlers'
 import {
   registerPowerMonitorReconnect,
@@ -87,13 +92,16 @@ const SSH_IPC_CHANNELS = [
   'ssh:listPortForwards',
   'ssh:listUnrestoredPortForwards',
   'ssh:removeSavedPortForward',
-  'ssh:listDetectedPorts'
+  'ssh:listDetectedPorts',
+  'ssh:saveTargetPassword',
+  'ssh:clearTargetPassword'
 ] as const
 
 export function registerSshHandlers(
   store: Store,
   getMainWindow: () => BrowserWindow | null,
-  runtime?: OrcaRuntimeService
+  runtime?: OrcaRuntimeService,
+  options?: { sshPasswordsDirectory?: string }
 ): { connectionManager: SshConnectionManager; sshStore: SshConnectionStore } {
   initializeSshConnectionGenerationSession()
   // macOS window recreation re-registers handlers; remove old channels to avoid duplicate registration.
@@ -119,6 +127,19 @@ export function registerSshHandlers(
     setConnectionManager(new SshConnectionManager(callbacks))
     // Window re-registration must not re-gate hosts already signed in during this process.
     awaitSignInForCredentialHosts(getSshTargetRegistryStore()!)
+  }
+  // Per-profile saved passwords enable one-click sign-in; unset (tests, embeds) disables the feature.
+  if (options?.sshPasswordsDirectory) {
+    const sshPasswords = createSshHostPasswordStore({ directory: options.sshPasswordsDirectory })
+    setSshHostPasswordStore(sshPasswords)
+    sshPasswords.sweep(
+      new Set(
+        getSshTargetRegistryStore()!
+          .listTargets()
+          .map((t) => t.id)
+      )
+    )
+    connectionManager?.setSavedPasswordResolver((targetId) => sshPasswords.read(targetId))
   }
   setPortForwardManager(portForwardManager ?? new SshPortForwardManager())
   portForwardManager!.setCallbacks({
@@ -149,6 +170,7 @@ export function registerSshHandlers(
 
   registerSshTargetCrudHandlers()
   registerSshConnectionHandlers()
+  registerSshHostPasswordHandlers()
   registerSshPortForwardHandlers()
   registerPlainSshTerminalHandlers()
   // COMPAT(legacy-relay-bridge): terminals an older Orca's relay still runs.
@@ -202,6 +224,7 @@ export async function resetSshHandlerStateForTests(): Promise<void> {
   setPortForwardManager(null)
   setSshTargetRegistryStore(null)
   setPersistedStore(null)
+  setSshHostPasswordStore(null)
   setSshTargetRegistryHandlers({ connect: null, getState: null })
   setSshTargetMutations(null)
   setCurrentGetMainWindow(() => null)
