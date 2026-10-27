@@ -14,6 +14,9 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    env:
+      # Unset dev build identity so official stable/rc telemetry stays silent.
+      ORCA_DIAGNOSTICS_TOKEN_URL: https://www.onorca.dev/diagnostics/token
     steps:
       - uses: actions/checkout@v6
 
@@ -58,8 +61,32 @@ jobs:
           timeout 120 sudo apt-get update || true
           timeout 300 sudo apt-get install -y cpio rpm
 
-      - name: Build app
-        run: pnpm build:release
+      - name: Build workspace packages
+        run: pnpm run build:packages
+
+      - name: Build WSL guest
+        run: pnpm run build:wsl-guest
+
+      - name: Build native helpers
+        run: pnpm run build:native
+
+      - name: Verify computer native
+        run: pnpm run verify:computer-native
+
+      - name: Build CLI
+        run: pnpm run build:cli
+
+      - name: Build electron-vite bundles
+        run: pnpm run build:electron-vite
+
+      - name: Verify built skills CLI
+        run: pnpm run verify:built-skills-cli
+
+      - name: Project web client from renderer build
+        run: pnpm run build:web-from-renderer
+
+      - name: Build mobile web bundle
+        run: pnpm run build:mobile-web
         env:
           # Unset dev build identity so official stable/rc telemetry stays silent.
           ORCA_DIAGNOSTICS_TOKEN_URL: https://www.onorca.dev/diagnostics/token
