@@ -38,6 +38,7 @@ import {
 } from './ssh-host-password-handlers'
 import { createSshHostPasswordStore } from '../../ssh/ssh-host-password-store'
 import { registerPlainSshTerminalHandlers } from './plain-ssh-terminal-handlers'
+import { registerDirectSshFileHandlers } from './direct-ssh-file-handlers'
 import {
   registerPowerMonitorReconnect,
   unregisterPowerMonitorReconnect
@@ -173,6 +174,7 @@ export function registerSshHandlers(
   registerSshHostPasswordHandlers()
   registerSshPortForwardHandlers()
   registerPlainSshTerminalHandlers()
+  registerDirectSshFileHandlers()
   // COMPAT(legacy-relay-bridge): terminals an older Orca's relay still runs.
   registerLegacyRelayBridgeIpc({
     store,

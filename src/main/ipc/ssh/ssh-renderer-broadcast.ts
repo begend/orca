@@ -12,6 +12,7 @@ import {
   getWorktreeIdsForConnection
 } from '../../ports/ssh-advertised-url-enrichment'
 import { isRuntimeOwnedSshTarget } from '../../ssh/connection/ssh-connection-store'
+import { getDirectSshMode } from '../../ssh/direct-ssh/direct-ssh-mode'
 import { getSshProviderAuthority } from '../../ssh/ssh-provider-authority'
 import { clearSshHostServerStatus, getSshHostServerStatus } from '../../ssh/ssh-host-server-status'
 import { getSshTargetRegistryStore } from '../../ssh/targets/ssh-target-registry'
@@ -49,12 +50,14 @@ export function broadcastSshState(
 function withSshRemotePlatform(targetId: string, state: SshConnectionState): SshConnectionState {
   const authority = getSshProviderAuthority(targetId)
   const managedServer = state.managedServer ?? getSshHostServerStatus(targetId)
+  const plainSsh = state.status === 'connected' ? getDirectSshMode(targetId) : undefined
   return {
     ...state,
     targetId,
     providerEpoch: authority.providerEpoch,
     connectionGeneration: authority.connectionGeneration,
-    ...(managedServer ? { managedServer } : {})
+    ...(managedServer ? { managedServer } : {}),
+    ...(plainSsh ? { plainSsh } : {})
   }
 }
 

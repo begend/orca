@@ -1,6 +1,12 @@
 import { appendFileSync } from 'node:fs'
-import type { SshConnectionState } from '../../../shared/ssh-types'
+import type { DirectSshAuthority, SshConnectionState, SshTarget } from '../../../shared/ssh-types'
 import { createCancelledConnectAttemptError } from '../../ssh/ssh-connect-attempt-cancellation'
+import { errorMessage } from '../../../shared/error-message'
+import { setDirectSshMode } from '../../ssh/direct-ssh/direct-ssh-mode'
+import {
+  findDirectSshSecurityKeyBlocker,
+  isDirectSshTarget
+} from '../../ssh/direct-ssh/direct-ssh-target'
 import {
   getSshProviderAuthority,
   isCurrentSshProviderAuthority,
@@ -26,8 +32,9 @@ import {
   connectInFlight,
   isCurrentConnectAttempt
 } from './ssh-connect-attempt-registry'
-import { connectionManager } from './ssh-ipc-context'
+import { connectionManager, getCurrentMainWindow } from './ssh-ipc-context'
 import { abandonDecisionTransport } from './ssh-session-teardown'
+import { broadcastSshState, getPublicSshState } from './ssh-renderer-broadcast'
 import { awaitTargetLifecycle } from './ssh-target-lifecycle-queue'
 import { startLegacyRelayBridge } from '../../ssh/legacy-relay/legacy-relay-bridge-registry'
 import { clearSshCredentialDeclined } from '../../ssh/ssh-credential-decline'
@@ -134,6 +141,9 @@ async function doConnect(
 
   // Attribute decision-created transports so cancellation closes only those not adopted by a newer owner.
   const owner = Symbol(targetId)
+  if (isDirectSshTarget(target)) {
+    return connectDirectSshTarget(target, authority, owner)
+  }
   // Deploy/conversion require teardown first; rotated authority still lets concurrent connects join.
   const server = await runAttributedToSshOwner(owner, () => decideHostServer(target)).catch(
     async (error: unknown) => {
@@ -201,4 +211,77 @@ function adoptCurrentTransport(targetId: string, owner: symbol): void {
   if (current) {
     adoptSshConnection(current, owner)
   }
+}
+
+/** FinalShell-style connect for manual hosts: standard SSH only — no host-server decision,
+ * deploy, migration or managed tunnel. Terminal and SFTP come from the Direct SSH module. */
+async function connectDirectSshTarget(
+  target: SshTarget,
+  authority: DirectSshAuthority,
+  owner: symbol
+): Promise<SshConnectionState> {
+  if (await findDirectSshSecurityKeyBlocker(target)) {
+    throw await failDirectSshConnect(
+      target.id,
+      authority,
+      'This host authenticates with a hardware security key, which needs the system OpenSSH ' +
+        'client. One-click sign-in supports passwords and standard key files only.'
+    )
+  }
+  try {
+    await runAttributedToSshOwner(owner, () => connectionManager!.connect(target))
+  } catch (error) {
+    if (!isCurrentConnectAttempt(target.id, authority)) {
+      throw createCancelledConnectAttemptError()
+    }
+    publishHostServerDecisionFailure(target.id, error)
+    throw error
+  }
+  assertSshConnectsNotFenced()
+  if (!isCurrentConnectAttempt(target.id, authority)) {
+    throw createCancelledConnectAttemptError()
+  }
+  const connection = connectionManager!.getConnection(target.id)
+  if (!connection || connection.usesSystemSshTransport()) {
+    throw await failDirectSshConnect(
+      target.id,
+      authority,
+      'This host needs the system OpenSSH transport (proxy, jump host or security key), which ' +
+        "doesn't support the direct terminal and file browser. Orca left it disconnected."
+    )
+  }
+  adoptCurrentTransport(target.id, owner)
+  setDirectSshMode(target.id)
+  const state: SshConnectionState = {
+    ...(connectionManager!.getState(target.id) ?? { targetId: target.id, reconnectAttempt: 0 }),
+    targetId: target.id,
+    status: 'connected',
+    error: null
+  }
+  broadcastSshState(getCurrentMainWindow, target.id, state)
+  return getPublicSshState(target.id) ?? state
+}
+
+/** An unusable direct host must not keep a connected transport it can't serve. */
+async function failDirectSshConnect(
+  targetId: string,
+  authority: DirectSshAuthority,
+  message: string
+): Promise<Error> {
+  const opened = connectionManager!.getConnection(targetId)
+  if (opened) {
+    try {
+      await connectionManager!.disconnectConnection(targetId, opened)
+    } catch (error) {
+      console.warn(
+        `[ssh] Failed to close the transport of unsupported direct host ${targetId}: ${errorMessage(error)}`
+      )
+    }
+  }
+  if (!isCurrentConnectAttempt(targetId, authority)) {
+    return createCancelledConnectAttemptError()
+  }
+  const failure = new Error(message)
+  publishHostServerDecisionFailure(targetId, failure)
+  return failure
 }

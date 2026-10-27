@@ -1,6 +1,11 @@
 import type { DirectSshAuthority } from '../../../shared/ssh-types'
 import { getSshTargetRegistryStore } from '../../ssh/targets/ssh-target-registry'
 import { clearSshHostServerStatus } from '../../ssh/ssh-host-server-status'
+import { clearDirectSshMode } from '../../ssh/direct-ssh/direct-ssh-mode'
+import {
+  getDirectSshFileService,
+  getDirectSshTerminalSessions
+} from '../../ssh/direct-ssh/direct-ssh-registry'
 import { isSshConnectionSolelyOwnedBy } from '../../ssh/connection/ssh-connection-attribution'
 import {
   connectInFlight,
@@ -62,6 +67,9 @@ export async function removeRegisteredSshTarget(targetId: string): Promise<void>
 }
 
 export async function teardownSshTargetTransport(targetId: string): Promise<void> {
+  clearDirectSshMode(targetId)
+  getDirectSshTerminalSessions()?.closeForTarget(targetId)
+  getDirectSshFileService()?.cancelForTarget(targetId)
   // COMPAT(legacy-relay-bridge): hangs up only this client; the relays keep their terminals.
   stopLegacyRelayBridge(targetId)
   forgetPortForwardRestoreState(targetId)

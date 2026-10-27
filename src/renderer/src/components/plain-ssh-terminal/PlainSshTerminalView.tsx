@@ -59,6 +59,11 @@ export function plainSshOpenFailureText(
     case 'ssh-missing':
     case 'spawn-failed':
       return result.message
+    case 'not-connected':
+      return translate(
+        'auto.components.plainSshTerminal.notConnected',
+        'This host is not connected. Connect it first.'
+      )
   }
 }
 
@@ -191,6 +196,20 @@ export function PlainSshTerminalView({
         })
         return
       }
+      if (event.kind === 'reconnecting' || event.kind === 'reconnected') {
+        // The xterm and scrollback stay; only the transport behind the session swaps out.
+        terminal.writeln(
+          `\x1b[2m${translate(
+            event.kind === 'reconnecting'
+              ? 'auto.components.plainSshTerminal.reconnecting'
+              : 'auto.components.plainSshTerminal.reconnected',
+            event.kind === 'reconnecting'
+              ? '— connection lost, reconnecting… —'
+              : '— reconnected: this is a new shell on the host —'
+          )}\x1b[0m`
+        )
+        return
+      }
       // A clean logout closes the window; anything else keeps its output, with no shell after it.
       const clean = event.exitCode === 0 && !event.signal
       finish(clean ? null : { kind: 'ended', exitCode: event.exitCode, signal: event.signal })
@@ -201,7 +220,8 @@ export function PlainSshTerminalView({
     unsubscribe = api.onEvent((event) => {
       if (phase === 'opening') {
         // Exits are always kept: a session that ended before its id arrived must still end here.
-        if (event.kind === 'exit') {
+        // Reconnect flips are kept too; only data chunks risk the early cap.
+        if (event.kind !== 'data') {
           early.push(event)
         } else if (
           // Why: once a session drops output, later chunks would leave a hole mid escape sequence.

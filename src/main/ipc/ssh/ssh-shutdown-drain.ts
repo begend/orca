@@ -6,6 +6,10 @@ import {
 import { connectionManager, portForwardManager } from './ssh-ipc-context'
 import { shutdownOrcadManagedTunnels } from '../../managed-server/lifecycle/orcad-managed-tunnel'
 import { closeAllPlainSshTerminals } from '../../ssh/plain-ssh-terminal/plain-ssh-terminal-sessions'
+import {
+  getDirectSshFileService,
+  getDirectSshTerminalSessions
+} from '../../ssh/direct-ssh/direct-ssh-registry'
 
 // One absolute deadline bounds all phases, including connects stuck before their next cancellation checkpoint.
 export const SSH_SHUTDOWN_BUDGET_MS = 6_000
@@ -72,6 +76,14 @@ function sshShutdownTasks(): SshShutdownTask[] {
       // Plain SSH terminals have no restoration owner and must end with Orca.
       targetId: '*plain-ssh',
       promise: closeAllPlainSshTerminals()
+    },
+    {
+      // Direct SSH sessions and transfers are main-owned; release their channels with the app.
+      targetId: '*direct-ssh',
+      promise: Promise.all([
+        Promise.resolve(getDirectSshTerminalSessions()?.closeAll()),
+        Promise.resolve(getDirectSshFileService()?.cancelAll())
+      ]).then(() => undefined)
     }
   ]
 }

@@ -17,7 +17,9 @@ const mocks = vi.hoisted(() => ({
   requestRemove: vi.fn(),
   requestBulkRemove: vi.fn(),
   openSettingsTarget: vi.fn(),
-  connectionStates: new Map<string, SshConnectionState>()
+  showPlainSshPanel: vi.fn(),
+  connectionStates: new Map<string, SshConnectionState>(),
+  sshTargetLabels: new Map<string, string>()
 }))
 vi.mock('sonner', () => ({
   toast: Object.assign(mocks.toast, { success: mocks.success, error: vi.fn() })
@@ -25,6 +27,7 @@ vi.mock('sonner', () => ({
 vi.mock('@/store', () => {
   const state = {
     sshConnectionStates: mocks.connectionStates,
+    sshTargetLabels: mocks.sshTargetLabels,
     recordFeatureInteraction: mocks.recordInteraction,
     setSshTargetsMetadata: vi.fn(),
     clearRemovedSshTargetState: vi.fn(),
@@ -41,6 +44,9 @@ vi.mock('@/store', () => {
 })
 vi.mock('@/ssh/ssh-old-relay-terminals-action', () => ({
   useSshConnectFailureToast: () => vi.fn()
+}))
+vi.mock('@/ssh/plain-ssh-terminal-panels', () => ({
+  showPlainSshPanel: mocks.showPlainSshPanel
 }))
 vi.mock('./SshTargetForm', () => ({ SshTargetForm: () => null, EMPTY_FORM: {} }))
 vi.mock('./SshTargetDestructiveActions', () => ({
@@ -94,6 +100,7 @@ afterEach(async () => {
   Reflect.deleteProperty(window, 'api')
   resetSshConfigPassiveSyncForTests()
   mocks.connectionStates.clear()
+  mocks.sshTargetLabels.clear()
   vi.clearAllMocks()
   await setRendererUiLanguage('en')
 })
@@ -223,6 +230,55 @@ describe('removing a managed server host', () => {
       repoId: null,
       sectionId: 'managed-servers'
     })
+  })
+})
+
+// FinalShell-style one-click sign-in: connect must open the host panel for direct hosts.
+describe('one-click direct SSH sign-in', () => {
+  it('opens the host panel from the settled connect result, not the stale store', async () => {
+    const target: SshTarget = {
+      id: 'box',
+      label: 'Build box',
+      host: 'box.example.test',
+      port: 22,
+      username: 'dev',
+      source: 'manual'
+    }
+    mocks.sshTargetLabels.set(target.id, target.label)
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        ssh: {
+          importConfig: async () => ({ targets: [], repoReadoptions: [] }),
+          listTargets: async () => [target],
+          // The store map stays empty: the push event that would fill it has not landed yet.
+          connect: async () => ({
+            status: 'connected',
+            error: null,
+            reconnectAttempt: 0,
+            plainSsh: { reason: 'manual-direct', message: 'Direct SSH session' }
+          })
+        }
+      }
+    })
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    await act(async () => {
+      root?.render(
+        <TooltipProvider>
+          <SshPane />
+        </TooltipProvider>
+      )
+    })
+    const connect = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Connect'
+    )
+    expect(connect).toBeTruthy()
+    await act(async () => {
+      connect?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(mocks.showPlainSshPanel).toHaveBeenCalledWith('box', 'Build box', { direct: true })
   })
 })
 

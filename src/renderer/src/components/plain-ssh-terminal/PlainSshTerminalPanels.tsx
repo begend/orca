@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Minus, SquareTerminal, X } from 'lucide-react'
+import { FolderOpen, Minus, SquareTerminal, X } from 'lucide-react'
 import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,7 @@ import {
   type PlainSshPanel
 } from '@/ssh/plain-ssh-terminal-panels'
 import { PlainSshTerminalView, type PlainSshTerminalPhase } from './PlainSshTerminalView'
+import { DirectSshFileBrowser } from './DirectSshFileBrowser'
 
 export function plainSshUnmanagedNotice(): string {
   return translate(
@@ -66,7 +67,9 @@ function HeaderIconButton({
 /** A non-modal window over Orca; minimized windows wait in a strip at the bottom right. */
 function PlainSshTerminalCard({ panel }: { panel: PlainSshPanel }): React.JSX.Element {
   const [phase, setPhase] = useState<PlainSshTerminalPhase>({ kind: 'opening' })
+  const [tab, setTab] = useState<'terminal' | 'files'>('terminal')
   const message = phaseText(phase)
+  const filesAvailable = panel.direct && Boolean(window.api.directSshFiles)
   return (
     <section
       aria-label={translate('auto.components.plainSshTerminal.title', 'Plain SSH · {{host}}', {
@@ -88,6 +91,28 @@ function PlainSshTerminalCard({ panel }: { panel: PlainSshPanel }): React.JSX.El
             host: panel.label
           })}
         </div>
+        {filesAvailable && phase.kind !== 'failed' ? (
+          <div
+            role="tablist"
+            aria-label={translate('auto.components.plainSshTerminal.views', 'Host views')}
+            className="flex items-center gap-0.5 rounded-md border border-border p-0.5"
+          >
+            <ViewTabButton
+              active={tab === 'terminal'}
+              label={translate('auto.components.plainSshTerminal.terminalTab', 'Terminal')}
+              onClick={() => setTab('terminal')}
+            >
+              <SquareTerminal />
+            </ViewTabButton>
+            <ViewTabButton
+              active={tab === 'files'}
+              label={translate('auto.components.plainSshTerminal.filesTab', 'Files')}
+              onClick={() => setTab('files')}
+            >
+              <FolderOpen />
+            </ViewTabButton>
+          </div>
+        ) : null}
         <HeaderIconButton
           label={translate('auto.components.plainSshTerminal.minimize', 'Minimize')}
           onClick={() => minimizePlainSshPanel(panel.targetId)}
@@ -110,15 +135,53 @@ function PlainSshTerminalCard({ panel }: { panel: PlainSshPanel }): React.JSX.El
       {/* An empty terminal under a failed open's error would read as a live session. */}
       <div
         data-plain-ssh-screen
-        className={cn('min-h-0 flex-1', phase.kind === 'failed' && 'hidden')}
+        className={cn(
+          'min-h-0 flex-1',
+          (phase.kind === 'failed' || (filesAvailable && tab === 'files')) && 'hidden'
+        )}
       >
         <PlainSshTerminalView
           targetId={panel.targetId}
-          hidden={panel.minimized}
+          // Hidden, not unmounted: switching to Files must not hang up the shell.
+          hidden={panel.minimized || (filesAvailable && tab === 'files')}
           onPhase={setPhase}
         />
       </div>
+      {filesAvailable && tab === 'files' && phase.kind !== 'failed' ? (
+        <DirectSshFileBrowser targetId={panel.targetId} />
+      ) : null}
     </section>
+  )
+}
+
+function ViewTabButton({
+  active,
+  label,
+  onClick,
+  children
+}: {
+  active: boolean
+  label: string
+  onClick: () => void
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          size="icon-xs"
+          variant={active ? 'secondary' : 'ghost'}
+          role="tab"
+          aria-selected={active}
+          aria-label={label}
+          onClick={onClick}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   )
 }
 

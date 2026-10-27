@@ -33,6 +33,7 @@ const { mockSshStore, mockConnectionManager } = mocks
 const target: SshTarget = {
   id: 'ssh-1',
   label: 'Server',
+  source: 'ssh-config',
   host: 'example.com',
   port: 22,
   username: 'deploy'

@@ -25,6 +25,7 @@ const { mockSshStore, mockConnectionManager } = mocks
 const passwordHost: SshTarget = {
   id: 'ssh-pw',
   label: 'Password host',
+  source: 'ssh-config',
   host: 'pw.example.com',
   port: 22,
   username: 'deploy',
@@ -33,6 +34,7 @@ const passwordHost: SshTarget = {
 const keyHost: SshTarget = {
   id: 'ssh-key',
   label: 'Key host',
+  source: 'ssh-config',
   host: 'key.example.com',
   port: 22,
   username: 'deploy'

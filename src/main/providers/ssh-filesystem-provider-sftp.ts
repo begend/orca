@@ -6,7 +6,8 @@ function abortReason(signal: AbortSignal): Error {
   return signal.reason instanceof Error ? signal.reason : new Error('Download canceled')
 }
 
-function waitForSftpCallback<T>(
+/** Bounds one SFTP round trip; abort closes SFTP and settles late replies as aborted. */
+export function waitForSftpCallback<T>(
   register: (callback: (err?: Error | null, value?: T) => void) => void,
   options?: { signal?: AbortSignal }
 ): Promise<T> {

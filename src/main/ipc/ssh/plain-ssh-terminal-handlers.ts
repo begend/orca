@@ -20,6 +20,16 @@ import {
   writePlainSshTerminal,
   type PlainSshTerminalDeps
 } from '../../ssh/plain-ssh-terminal/plain-ssh-terminal-sessions'
+import { isDirectSshTarget } from '../../ssh/direct-ssh/direct-ssh-target'
+import {
+  DirectSshTerminalSessions,
+  type DirectSshTerminalDeps
+} from '../../ssh/direct-ssh/direct-ssh-terminal-sessions'
+import {
+  getDirectSshTerminalSessions,
+  setDirectSshTerminalSessions
+} from '../../ssh/direct-ssh/direct-ssh-registry'
+import { connectionManager } from './ssh-ipc-context'
 
 const deps: PlainSshTerminalDeps = {
   getTarget: (targetId) => getSshTargetRegistryStore()?.getTarget(targetId),
@@ -36,6 +46,13 @@ const deps: PlainSshTerminalDeps = {
 }
 
 const watchedOwners = new Set<number>()
+const liveOwners = new Set<number>()
+
+const directDeps: DirectSshTerminalDeps = {
+  getConnection: (targetId) => connectionManager?.getConnection(targetId),
+  isOwnerLive: (owner) => liveOwners.has(owner)
+}
+setDirectSshTerminalSessions(new DirectSshTerminalSessions(directDeps))
 
 /** Plain SSH sessions cannot reattach after owner reload, crash or close. */
 function endSessionsWithOwner(sender: WebContents): void {
@@ -43,16 +60,25 @@ function endSessionsWithOwner(sender: WebContents): void {
     return
   }
   watchedOwners.add(sender.id)
+  liveOwners.add(sender.id)
   const owner = sender.id
   const end = (): void => closePlainSshTerminalsOwnedBy(owner)
+  // Direct SSH sessions only detach here: main keeps them so a reload or reopen reattaches.
+  const detachDirect = (): void => getDirectSshTerminalSessions()?.detachOwner(owner)
   sender.on('did-start-navigation', (details) => {
     if (details.isMainFrame && !details.isSameDocument) {
+      detachDirect()
       end()
     }
   })
-  sender.on('render-process-gone', end)
+  sender.on('render-process-gone', () => {
+    detachDirect()
+    end()
+  })
   sender.once('destroyed', () => {
     watchedOwners.delete(owner)
+    liveOwners.delete(owner)
+    detachDirect()
     end()
   })
 }
@@ -70,16 +96,30 @@ export function registerPlainSshTerminalHandlers(): void {
     async (ipcEvent, args: { targetId?: unknown; cols?: unknown; rows?: unknown }) => {
       const sender = ipcEvent.sender
       endSessionsWithOwner(sender)
+      const sink = (payload: PlainSshTerminalEvent): boolean => {
+        if (sender.isDestroyed()) {
+          return false
+        }
+        sender.send(event, payload)
+        return true
+      }
+      const target =
+        typeof args?.targetId === 'string'
+          ? getSshTargetRegistryStore()?.getTarget(args.targetId)
+          : undefined
+      if (target && !target.owner && isDirectSshTarget(target)) {
+        const result = await getDirectSshTerminalSessions()!.open(
+          target.id,
+          sender.id,
+          { cols: args?.cols, rows: args?.rows },
+          sink
+        )
+        return result.ok ? { ...result, label: target.label } : result
+      }
       return openPlainSshTerminal(
         deps,
         { targetId: args?.targetId, cols: args?.cols, rows: args?.rows, owner: sender.id },
-        (payload: PlainSshTerminalEvent) => {
-          if (sender.isDestroyed()) {
-            return false
-          }
-          sender.send(event, payload)
-          return true
-        }
+        sink
       )
     }
   )

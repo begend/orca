@@ -59,6 +59,7 @@ import type { ShellApi } from './api/shell-api'
 import type { SpeechApi } from './api/speech-api'
 import type { SshApi } from './api/ssh-api'
 import type { PlainSshTerminalApi } from './api/plain-ssh-terminal-bridge'
+import type { DirectSshFilesApi } from './api/direct-ssh-files-bridge'
 import type { LegacyRelayBridgeApi } from './api/legacy-relay-bridge-api'
 import type { DiagnosticsApi, MemoryApi, StatsApi, TelemetryApi } from './api/telemetry-api'
 import type { UiCommandEventApi } from './api/ui-command-event-api'
@@ -156,6 +157,8 @@ export type PreloadApi = {
   ssh: SshApi
   /** Desktop only: an unmanaged ssh login to a host whose move is blocked. */
   plainSsh?: PlainSshTerminalApi
+  /** Desktop only: browse and transfer files on a direct (manual) SSH host. */
+  directSshFiles?: DirectSshFilesApi
   /** COMPAT(legacy-relay-bridge): desktop-only, revisit 2027-01-15. */
   legacyRelayBridge?: LegacyRelayBridgeApi
   automations: AutomationsApi

@@ -153,9 +153,17 @@ export function SshTargetCard({
   const renderPrimaryAction = (): React.JSX.Element => {
     if (status === 'connected') {
       return (
-        <Button variant="ghost" size="xs" onClick={handleDisconnect} disabled={hasActionInFlight}>
-          {translate('auto.components.settings.SshTargetCard.4c86f30877', 'Disconnect')}
-        </Button>
+        <>
+          {/* A closed host panel must be reopenable without a disconnect round-trip. */}
+          {state?.plainSsh ? (
+            <Button variant="ghost" size="xs" onClick={handleConnect} disabled={hasActionInFlight}>
+              {translate('auto.components.settings.SshTargetCard.openPanel', 'Open panel')}
+            </Button>
+          ) : null}
+          <Button variant="ghost" size="xs" onClick={handleDisconnect} disabled={hasActionInFlight}>
+            {translate('auto.components.settings.SshTargetCard.4c86f30877', 'Disconnect')}
+          </Button>
+        </>
       )
     }
     if (isSshTargetConnecting(status)) {

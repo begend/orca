@@ -11,8 +11,8 @@ export const PLAIN_SSH_TERMINAL_CHANNELS = {
 
 export type PlainSshTerminalOpenResult =
   | { ok: true; sessionId: string; label: string }
-  /** `already-open`: another window holds this host's one session. */
-  | { ok: false; reason: 'unknown-target' | 'not-blocked' | 'already-open' }
+  /** `already-open`: another window holds this host's one session; `not-connected`: direct host has no live transport. */
+  | { ok: false; reason: 'unknown-target' | 'not-blocked' | 'already-open' | 'not-connected' }
   /** A newer open from the same window, a reload or quit took this one's place. */
   | { ok: false; reason: 'cancelled' }
   | { ok: false; reason: 'ssh-missing' | 'spawn-failed'; message: string }
@@ -21,3 +21,6 @@ export type PlainSshTerminalEvent =
   | { kind: 'data'; sessionId: string; data: string }
   /** `signal`: set when ssh was killed, so a zero `exitCode` is not a clean logout. */
   | { kind: 'exit'; sessionId: string; exitCode: number; signal?: number }
+  /** Direct SSH only: the transport dropped (or came back); the logical session and its id continue. */
+  | { kind: 'reconnecting'; sessionId: string }
+  | { kind: 'reconnected'; sessionId: string }

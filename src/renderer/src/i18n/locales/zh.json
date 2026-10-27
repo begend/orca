@@ -8849,6 +8849,7 @@
         },
         "SshTargetCard": {
           "ec6543cee9": "连接",
+          "openPanel": "打开面板",
           "0e53e9f8e8": "测试",
           "1810b51482": "连接中",
           "4c86f30877": "断开连接",
@@ -18517,7 +18518,18 @@
         "endedBySignal": "ssh 已停止（信号 {{signal}}）。阅读完毕后请关闭此窗口。",
         "cancelled": "此普通 SSH 终端在启动前已关闭。",
         "terminalUnavailable": "Orca 无法在此处打开终端。",
-        "openHint": "在 Orca 无法在该主机上完成设置时，仍可让你继续在主机上工作。"
+        "openHint": "在 Orca 无法在该主机上完成设置时，仍可让你继续在主机上工作。",
+        "terminalTab": "终端",
+        "filesTab": "文件",
+        "views": "主机视图",
+        "upload": "上传",
+        "filter": "筛选",
+        "noMatches": "无匹配项",
+        "dismissTransfer": "忽略",
+        "filesUnavailable": "此构建不支持文件浏览。",
+        "notConnected": "此主机未连接，请先连接。",
+        "reconnecting": "— 连接中断，正在重新连接… —",
+        "reconnected": "— 已重新连接：这是主机上的新 shell —"
       }
     },
     "i18n": {

@@ -15,9 +15,12 @@ import { getSshTargetRegistryStore } from '../../ssh/targets/ssh-target-registry
 import { recordSshSignInRequirement } from './ssh-sign-in-requirement'
 import { restoreManagedHostPortForwards } from './ssh-managed-port-forward-restore'
 import { requestCredential } from './ssh-passphrase'
+import { getDirectSshTerminalSessions } from '../../ssh/direct-ssh/direct-ssh-registry'
 import { broadcastSshState } from './ssh-renderer-broadcast'
 
 export function handleSshConnectionStateChange(targetId: string, state: SshConnectionState): void {
+  // Direct SSH terminals swap to a fresh shell channel when their transport recovers.
+  getDirectSshTerminalSessions()?.notifyConnectionState(targetId, state.status)
   if (state.status === 'connected') {
     clearSshCredentialDeclined(targetId)
     recordSshSignInRequirement(targetId, getSshTargetRegistryStore(), connectionManager)

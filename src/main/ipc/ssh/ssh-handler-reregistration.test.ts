@@ -107,7 +107,8 @@ describe('SSH IPC handlers', () => {
       port: 22,
       username: 'deploy'
     }
-    const conn = {}
+    // The direct SSH flow asks which transport the connection landed on; the ssh2 stub answers.
+    const conn = { usesSystemSshTransport: () => false }
     mockSshStore.getTarget.mockReturnValue(target)
     mockConnectionManager.connect.mockResolvedValue(conn)
     mockConnectionManager.getConnection.mockReturnValue(conn)

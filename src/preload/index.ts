@@ -79,6 +79,7 @@ import { grokAccountsApi } from './api/grok-accounts-bridge'
 import { cursorAccountsApi } from './api/cursor-accounts-bridge'
 import { sshApi } from './api/ssh-bridge'
 import { plainSshTerminalApi } from './api/plain-ssh-terminal-bridge'
+import { directSshFilesApi } from './api/direct-ssh-files-bridge'
 import { legacyRelayBridgeApi } from './api/legacy-relay-bridge-api'
 import { automationsApi } from './api/automations-bridge'
 import { e2eApi } from './api/e2e-bridge'
@@ -180,6 +181,7 @@ const api = {
   cursorAccounts: cursorAccountsApi,
   ssh: sshApi,
   plainSsh: plainSshTerminalApi,
+  directSshFiles: directSshFilesApi,
   legacyRelayBridge: legacyRelayBridgeApi,
   automations: automationsApi,
   e2e: e2eApi,

@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import type { SshTarget, SshTargetWithCredentialStatus } from '../../../../shared/ssh-types'
 import { useAppStore } from '@/store'
 import { toastSshConnectFailure } from '@/ssh/ssh-connect-failure-toast'
+import { showPlainSshPanel } from '@/ssh/plain-ssh-terminal-panels'
 import { useMountedRef } from '@/hooks/useMountedRef'
 import { SshTargetList } from './SshTargetList'
 import { SshTargetsEmptyState } from './SshTargetsEmptyState'
@@ -274,8 +275,14 @@ export function SshPane({ addTargetIntentSignal }: SshPaneProps): React.JSX.Elem
 
   const handleConnect = async (targetId: string): Promise<void> => {
     try {
-      await window.api.ssh.connect({ targetId })
+      // connect resolves with the settled state; the push event may still be in flight.
+      const state = await window.api.ssh.connect({ targetId })
       recordFeatureInteraction('ssh')
+      // FinalShell-style one-click sign-in: a direct host's connect opens its host panel.
+      if (state?.status === 'connected' && state.plainSsh) {
+        const { sshTargetLabels } = useAppStore.getState()
+        showPlainSshPanel(targetId, sshTargetLabels.get(targetId) ?? targetId, { direct: true })
+      }
     } catch (err) {
       toastSshConnectFailure(
         targetId,

@@ -42,6 +42,8 @@ export function buildConnectConfig(
     username: effectiveUser,
     readyTimeout: CONNECT_TIMEOUT_MS,
     keepaliveInterval: 15_000,
+    // Four missed probes (~60s) before a NAT-idle or dead transport counts as lost.
+    keepaliveCountMax: 4,
     // Allow RFC4256 keyboard-interactive challenges, including MFA after partial password success.
     tryKeyboard: true
   }

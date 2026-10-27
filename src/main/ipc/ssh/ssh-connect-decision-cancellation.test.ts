@@ -47,6 +47,7 @@ describe('a connect cancelled during its server decision', () => {
     const target: SshTarget = {
       id: 'ssh-1',
       label: 'Server',
+      source: 'ssh-config',
       host: 'example.com',
       port: 22,
       username: 'deploy'
@@ -62,6 +63,7 @@ describe('a connect cancelled during its server decision', () => {
     const target: SshTarget = {
       id: 'ssh-1',
       label: 'Server',
+      source: 'ssh-config',
       host: 'example.com',
       port: 22,
       username: 'deploy'
@@ -89,6 +91,7 @@ describe('a connect cancelled during its server decision', () => {
     const target: SshTarget = {
       id: 'ssh-1',
       label: 'Server',
+      source: 'ssh-config',
       host: 'example.com',
       port: 22,
       username: 'deploy'
@@ -122,6 +125,7 @@ describe('a connect cancelled during its server decision', () => {
     const target: SshTarget = {
       id: 'ssh-1',
       label: 'Server',
+      source: 'ssh-config',
       host: 'example.com',
       port: 22,
       username: 'deploy'
@@ -150,6 +154,7 @@ describe('a connect cancelled during its server decision', () => {
     const target: SshTarget = {
       id: 'ssh-1',
       label: 'Server',
+      source: 'ssh-config',
       host: 'example.com',
       port: 22,
       username: 'deploy'
@@ -183,6 +188,7 @@ describe('a connect cancelled during its server decision', () => {
     const target: SshTarget = {
       id: 'ssh-1',
       label: 'Server',
+      source: 'ssh-config',
       host: 'example.com',
       port: 22,
       username: 'deploy',
