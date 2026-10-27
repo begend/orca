@@ -94,11 +94,12 @@ jobs:
       - name: Install Rosetta
         run: sudo softwareupdate --install-rosetta --agree-to-license || true
 
-      - name: Package macOS dmg and zip
+      - name: Package macOS dmg and zip (arm64)
         run: |
           set -o pipefail
           pnpm ensure:electron-runtime
-          pnpm exec electron-builder --config config/electron-builder.config.cjs --mac --publish never 2>&1 | tee /tmp/mac-package.log || {
+          pnpm exec electron-builder --config config/electron-builder.config.cjs --mac dmg zip --arm64 --publish never 2>&1 | tee /tmp/mac-package.log || {
+            tail -n 12 /tmp/mac-package.log | sed 's/^/::error::/'
             echo '## mac package failure tail' >> "$GITHUB_STEP_SUMMARY"
             echo '```' >> "$GITHUB_STEP_SUMMARY"
             tail -c 5000 /tmp/mac-package.log >> "$GITHUB_STEP_SUMMARY"
@@ -113,7 +114,7 @@ jobs:
         with:
           name: orca-macos-packages
           path: |
-            dist/orca-macos-*.dmg
-            dist/orca-macos-*.zip
+            dist/orca-macos-arm64.dmg
+            dist/orca-macos-arm64.zip
           if-no-files-found: error
           retention-days: 14
