@@ -18508,14 +18508,15 @@
       "plainSshTerminal": {
         "open": "打开普通 SSH 终端",
         "unmanaged": "普通 SSH — 非托管。这不是 Orca 工作区：此处的智能体和标签页不会被跟踪，且此终端不会恢复。关闭它会结束 SSH 会话。",
-        "ended": "ssh 已以代码 {{code}} 退出。阅读完毕后请关闭此窗口。",
+        "unmanagedDirect": "普通 SSH — 非托管。这不是 Orca 工作区：此处的智能体和标签页不会被跟踪，且此终端不会恢复。关闭标签页会结束对应的 shell；关闭窗口会结束全部会话。",
+        "ended": "ssh 已以代码 {{code}} 退出。阅读完毕后可关闭。",
         "title": "普通 SSH · {{host}}",
         "minimize": "最小化",
         "close": "关闭并结束会话",
         "unknownTarget": "此 SSH 主机已不再保存在 Orca 中。",
         "notBlocked": "Orca 现在可以再次连接到此主机，请改用其终端。仅在 Orca 无法在该主机上完成设置时使用普通 SSH。",
         "alreadyOpen": "另一个 Orca 窗口已打开到此主机的普通 SSH 终端。",
-        "endedBySignal": "ssh 已停止（信号 {{signal}}）。阅读完毕后请关闭此窗口。",
+        "endedBySignal": "ssh 已停止（信号 {{signal}}）。阅读完毕后可关闭。",
         "cancelled": "此普通 SSH 终端在启动前已关闭。",
         "terminalUnavailable": "Orca 无法在此处打开终端。",
         "openHint": "在 Orca 无法在该主机上完成设置时，仍可让你继续在主机上工作。",
@@ -18529,7 +18530,11 @@
         "filesUnavailable": "此构建不支持文件浏览。",
         "notConnected": "此主机未连接，请先连接。",
         "reconnecting": "— 连接中断，正在重新连接… —",
-        "reconnected": "— 已重新连接：这是主机上的新 shell —"
+        "reconnected": "— 已重新连接：这是主机上的新 shell —",
+        "newTab": "新建终端",
+        "closeTab": "关闭标签页",
+        "maximize": "最大化",
+        "restore": "还原"
       }
     },
     "i18n": {

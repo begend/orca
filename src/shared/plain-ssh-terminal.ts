@@ -1,6 +1,8 @@
 /** The plain SSH terminal's IPC contract: open by saved target id, then talk by session id. */
 export const PLAIN_SSH_TERMINAL_CHANNELS = {
   open: 'plainSsh:open',
+  /** Direct hosts only: sessions the calling window may attach (its own or detached ones). */
+  list: 'plainSsh:list',
   write: 'plainSsh:write',
   resize: 'plainSsh:resize',
   close: 'plainSsh:close',
@@ -9,6 +11,16 @@ export const PLAIN_SSH_TERMINAL_CHANNELS = {
   event: 'plainSsh:event'
 } as const
 
+export type PlainSshTerminalOpenRequest = {
+  targetId: string
+  cols: number
+  rows: number
+  /** Direct hosts only: always allocate a fresh shell instead of adopting the host's session. */
+  newSession?: boolean
+  /** Direct hosts only: attach this existing session (a detached one listed after a reload). */
+  sessionId?: string
+}
+
 export type PlainSshTerminalOpenResult =
   | { ok: true; sessionId: string; label: string }
   /** `already-open`: another window holds this host's one session; `not-connected`: direct host has no live transport. */
@@ -16,6 +28,8 @@ export type PlainSshTerminalOpenResult =
   /** A newer open from the same window, a reload or quit took this one's place. */
   | { ok: false; reason: 'cancelled' }
   | { ok: false; reason: 'ssh-missing' | 'spawn-failed'; message: string }
+
+export type PlainSshTerminalListResult = { sessionIds: string[] }
 
 export type PlainSshTerminalEvent =
   | { kind: 'data'; sessionId: string; data: string }

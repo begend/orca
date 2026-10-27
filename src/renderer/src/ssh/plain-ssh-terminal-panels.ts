@@ -1,12 +1,26 @@
 // Keep one plain SSH window per host outside store/session; never persist, restore or sync it.
 import { useSyncExternalStore } from 'react'
+import { createBrowserUuid } from '@/lib/browser-uuid'
+
+/** A terminal tab inside a direct host's window; `attachSessionId` reattaches a listed session. */
+export type PlainSshPanelTab = {
+  id: string
+  attachSessionId?: string
+}
+
+/** Id of the pseudo-tab that shows the host's SFTP file browser. */
+export const PLAIN_SSH_FILES_TAB_ID = 'files'
 
 export type PlainSshPanel = {
   targetId: string
   label: string
   minimized: boolean
-  /** Direct hosts get a Files tab backed by SFTP; the escape hatch stays terminal-only. */
+  /** Direct hosts get terminal tabs plus a Files tab backed by SFTP; the escape hatch stays terminal-only. */
   direct: boolean
+  /** Direct hosts only; ordered terminal tabs, one shell each. */
+  tabs: PlainSshPanelTab[]
+  /** Selected terminal tab id, the Files pseudo-tab id, or null (nothing selected yet). */
+  selectedTabId: string | null
 }
 
 let panels: readonly PlainSshPanel[] = []
@@ -17,6 +31,10 @@ function publish(next: readonly PlainSshPanel[]): void {
   for (const listener of listeners) {
     listener()
   }
+}
+
+function patchPanel(targetId: string, patch: (panel: PlainSshPanel) => PlainSshPanel): void {
+  publish(panels.map((panel) => (panel.targetId === targetId ? patch(panel) : panel)))
 }
 
 /** Shows the host's window, opening it if needed; only one is expanded at a time. */
@@ -32,20 +50,58 @@ export function showPlainSshPanel(
   const current = panels.find((panel) => panel.targetId === targetId)
   publish([
     ...rest,
-    {
-      targetId,
-      label: current?.label ?? label,
-      minimized: false,
-      // A direct open upgrades the tab set; the escape hatch never revokes it.
-      direct: current?.direct || direct
-    }
+    current
+      ? { ...current, minimized: false, label, direct: current.direct || direct }
+      : {
+          targetId,
+          label,
+          minimized: false,
+          direct,
+          tabs: [],
+          // Direct windows populate tabs from the session list once mounted.
+          selectedTabId: null
+        }
   ])
 }
 
-export function minimizePlainSshPanel(targetId: string): void {
-  publish(
-    panels.map((panel) => (panel.targetId === targetId ? { ...panel, minimized: true } : panel))
+/** Adds a terminal tab and selects it; returns the tab id. */
+export function addPlainSshPanelTab(
+  targetId: string,
+  options?: { attachSessionId?: string }
+): string {
+  const tab: PlainSshPanelTab = { id: createBrowserUuid(), ...options }
+  patchPanel(targetId, (panel) => ({
+    ...panel,
+    tabs: [...panel.tabs, tab],
+    selectedTabId: tab.id
+  }))
+  return tab.id
+}
+
+export function closePlainSshPanelTab(targetId: string, tabId: string): void {
+  patchPanel(targetId, (panel) => {
+    const index = panel.tabs.findIndex((tab) => tab.id === tabId)
+    if (index === -1) {
+      return panel
+    }
+    const tabs = panel.tabs.filter((tab) => tab.id !== tabId)
+    let selectedTabId = panel.selectedTabId
+    if (selectedTabId === tabId) {
+      // Next tab right, else left, else the Files pseudo-tab.
+      selectedTabId = tabs[Math.min(index, tabs.length - 1)]?.id ?? PLAIN_SSH_FILES_TAB_ID
+    }
+    return { ...panel, tabs, selectedTabId }
+  })
+}
+
+export function setActivePlainSshPanelTab(targetId: string, tabId: string): void {
+  patchPanel(targetId, (panel) =>
+    panel.selectedTabId === tabId ? panel : { ...panel, selectedTabId: tabId }
   )
+}
+
+export function minimizePlainSshPanel(targetId: string): void {
+  patchPanel(targetId, (panel) => ({ ...panel, minimized: true }))
 }
 
 export function removePlainSshPanel(targetId: string): void {
@@ -55,6 +111,11 @@ export function removePlainSshPanel(targetId: string): void {
 function subscribe(listener: () => void): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)
+}
+
+/** Synchronous read for effects that must dedup against tabs added after their render. */
+export function getPlainSshPanel(targetId: string): PlainSshPanel | undefined {
+  return panels.find((panel) => panel.targetId === targetId)
 }
 
 export function usePlainSshPanels(): readonly PlainSshPanel[] {

@@ -1,16 +1,24 @@
-/** FinalShell-style long-lived terminals on a manually-added host's ssh2 transport. One logical
- * session per target survives transport drops: main keeps the session, swaps in a fresh shell
- * channel after the connection reconnects, and only a remote exit, explicit close or teardown
- * ends it. Unlike the system-ssh escape hatch these sessions are not owner-bound, so a window
- * reload detaches instead of hanging up. */
+/** FinalShell-style long-lived terminals on a manually-added host's ssh2 transport. Each logical
+ * session (one per terminal tab) survives transport drops: main keeps the session, swaps in a
+ * fresh shell channel after the connection reconnects, and only a remote exit, explicit close or
+ * teardown ends it. Unlike the system-ssh escape hatch these sessions are not owner-bound, so a
+ * window reload detaches instead of hanging up. */
 import { randomUUID } from 'node:crypto'
-import { StringDecoder } from 'node:string_decoder'
 import type { ClientChannel, PseudoTtyOptions, ShellOptions } from 'ssh2'
 import type { SshConnectionState } from '../../../shared/ssh-types'
 import type {
   PlainSshTerminalEvent,
   PlainSshTerminalOpenResult
 } from '../../../shared/plain-ssh-terminal'
+import {
+  DROPPED_EXIT_CODE,
+  RESUME_BELOW_UNACKED,
+  TERM,
+  clampSize,
+  type PlainSshTerminalSink,
+  type TerminalSession
+} from './direct-ssh-terminal-session-record'
+import { wireSessionChannel, type ChannelSessionHost } from './direct-ssh-terminal-channel'
 
 export type DirectSshConnectionLike = {
   shell: (pty: PseudoTtyOptions, options?: ShellOptions) => Promise<ClientChannel>
@@ -23,66 +31,59 @@ export type DirectSshTerminalDeps = {
   isOwnerLive: (owner: number) => boolean
 }
 
-type PlainSshTerminalSink = (event: PlainSshTerminalEvent) => boolean
-
 /** Label-free open result; the caller (which knows the target) attaches `label`. */
 export type DirectSshTerminalOpenResult =
   | { ok: true; sessionId: string }
   | Extract<PlainSshTerminalOpenResult, { ok: false }>
 
-type TerminalSession = {
-  id: string
-  targetId: string
-  owner: number | null
-  sink: PlainSshTerminalSink | null
-  channel: ClientChannel | null
-  state: 'opening' | 'live' | 'reattaching'
-  cols: number
-  rows: number
-  exitCode: number | null
-  /** Output sent but not yet rendered by the attached window, in UTF-16 units. */
-  unacked: number
-  paused: boolean
-}
-
-const TERM = 'xterm-256color'
-// Why: sshd reports a signalled shell as exit-signal, not exit-status; mirror the shell's 128+n.
-const SIGNALLED_EXIT_CODE = 129
-/** ssh's own convention for a dropped connection; also used when teardown ends a session. */
-const DROPPED_EXIT_CODE = 255
-// Backpressure large output until rendered instead of accumulating unbounded IPC.
-const PAUSE_ABOVE_UNACKED = 512 * 1024
-const RESUME_BELOW_UNACKED = 128 * 1024
-const MIN_SIZE = 2
-const MAX_SIZE = 1_000
-
 export class DirectSshTerminalSessions {
   private readonly sessions = new Map<string, TerminalSession>()
-  private readonly byTarget = new Map<string, TerminalSession>()
+  private readonly byTarget = new Map<string, Set<string>>()
+  private readonly channelHost: ChannelSessionHost = {
+    transportHealthy: (targetId) =>
+      this.deps.getConnection(targetId)?.getState().status === 'connected',
+    emit: (session, event) => this.emit(session, event),
+    remove: (session, exitCode) => this.remove(session, exitCode)
+  }
 
   constructor(private readonly deps: DirectSshTerminalDeps) {}
 
   async open(
     targetId: string,
     owner: number,
-    request: { cols: unknown; rows: unknown },
+    request: { cols: unknown; rows: unknown; newSession?: unknown; sessionId?: unknown },
     sink: PlainSshTerminalSink
   ): Promise<DirectSshTerminalOpenResult> {
     const connection = this.deps.getConnection(targetId)
     if (!connection || connection.isDisposed()) {
       return { ok: false, reason: 'not-connected' }
     }
-    const existing = this.byTarget.get(targetId)
-    if (existing) {
-      if (
-        existing.owner !== null &&
-        existing.owner !== owner &&
-        this.deps.isOwnerLive(existing.owner)
-      ) {
-        return { ok: false, reason: 'already-open' }
+    const existing = this.sessionsForTarget(targetId)
+    // One live window owns a host's shells; detached ones wait for any window to adopt.
+    if (
+      existing.some(
+        (session) =>
+          session.owner !== null && session.owner !== owner && this.deps.isOwnerLive(session.owner)
+      )
+    ) {
+      return { ok: false, reason: 'already-open' }
+    }
+    if (typeof request.sessionId === 'string') {
+      const session = this.sessions.get(request.sessionId)
+      if (!session || session.targetId !== targetId) {
+        return { ok: false, reason: 'cancelled' }
       }
-      this.attach(existing, owner, sink)
-      return { ok: true, sessionId: existing.id }
+      this.attach(session, owner, sink, request)
+      return { ok: true, sessionId: session.id }
+    }
+    if (request.newSession !== true) {
+      const adoptable = existing.find(
+        (session) => session.owner === null || session.owner === owner
+      )
+      if (adoptable) {
+        this.attach(adoptable, owner, sink, request)
+        return { ok: true, sessionId: adoptable.id }
+      }
     }
     const session: TerminalSession = {
       id: randomUUID(),
@@ -98,7 +99,7 @@ export class DirectSshTerminalSessions {
       paused: false
     }
     this.sessions.set(session.id, session)
-    this.byTarget.set(targetId, session)
+    this.indexTarget(session)
     if (connection.getState().status === 'connected') {
       try {
         await this.openChannel(session, connection)
@@ -116,6 +117,25 @@ export class DirectSshTerminalSessions {
       this.emit(session, { kind: 'reconnecting', sessionId: session.id })
     }
     return { ok: true, sessionId: session.id }
+  }
+
+  /** True when the id names a direct session, so IPC can dispatch instead of the legacy PTY map. */
+  hasSession(sessionId: unknown): boolean {
+    return typeof sessionId === 'string' && this.sessions.has(sessionId)
+  }
+
+  /** Sessions the window may see: none while another live window owns any of the host's shells. */
+  listSessions(targetId: string, owner: number): string[] {
+    const existing = this.sessionsForTarget(targetId)
+    if (
+      existing.some(
+        (session) =>
+          session.owner !== null && session.owner !== owner && this.deps.isOwnerLive(session.owner)
+      )
+    ) {
+      return []
+    }
+    return existing.map((session) => session.id)
   }
 
   write(sessionId: unknown, owner: number, data: unknown): void {
@@ -139,17 +159,12 @@ export class DirectSshTerminalSessions {
 
   ack(sessionId: unknown, owner: number, chars: unknown): void {
     const session = this.ownedSession(sessionId, owner)
-    if (
-      !session ||
-      typeof chars !== 'number' ||
-      !Number.isFinite(chars) ||
-      chars <= 0 ||
-      !session.paused
-    ) {
+    if (!session || typeof chars !== 'number' || !Number.isFinite(chars) || chars <= 0) {
       return
     }
+    // Count every rendered byte or the first burst can throttle a session that never paused.
     session.unacked = Math.max(0, session.unacked - chars)
-    if (session.unacked < RESUME_BELOW_UNACKED) {
+    if (session.paused && session.unacked < RESUME_BELOW_UNACKED) {
       session.paused = false
       session.channel?.resume()
     }
@@ -173,19 +188,20 @@ export class DirectSshTerminalSessions {
   }
 
   notifyConnectionState(targetId: string, status: SshConnectionState['status']): void {
-    const session = this.byTarget.get(targetId)
-    if (!session || session.state === 'opening') {
+    if (status !== 'connected') {
       return
     }
-    if (status === 'connected' && session.state === 'reattaching') {
-      void this.reattach(session)
+    // Every surviving tab gets its own replacement channel under its logical session id.
+    for (const session of this.sessionsForTarget(targetId)) {
+      if (session.state === 'reattaching') {
+        void this.reattach(session)
+      }
     }
   }
 
   /** Teardown (user Disconnect, target removal): end the session and report the drop. */
   closeForTarget(targetId: string): void {
-    const session = this.byTarget.get(targetId)
-    if (session) {
+    for (const session of this.sessionsForTarget(targetId)) {
       this.remove(session, DROPPED_EXIT_CODE)
     }
   }
@@ -197,10 +213,45 @@ export class DirectSshTerminalSessions {
     }
   }
 
-  private attach(session: TerminalSession, owner: number, sink: PlainSshTerminalSink): void {
+  private sessionsForTarget(targetId: string): TerminalSession[] {
+    const ids = this.byTarget.get(targetId)
+    if (!ids) {
+      return []
+    }
+    const sessions: TerminalSession[] = []
+    for (const id of ids) {
+      const session = this.sessions.get(id)
+      if (session) {
+        sessions.push(session)
+      }
+    }
+    return sessions
+  }
+
+  private indexTarget(session: TerminalSession): void {
+    const ids = this.byTarget.get(session.targetId)
+    if (ids) {
+      ids.add(session.id)
+    } else {
+      this.byTarget.set(session.targetId, new Set([session.id]))
+    }
+  }
+
+  private attach(
+    session: TerminalSession,
+    owner: number,
+    sink: PlainSshTerminalSink,
+    request: { cols: unknown; rows: unknown }
+  ): void {
     session.owner = owner
     session.sink = sink
     session.unacked = 0
+    // The attaching xterm measures its own grid; a detached session must follow it.
+    session.cols = clampSize(request.cols, session.cols)
+    session.rows = clampSize(request.rows, session.rows)
+    if (session.state === 'live') {
+      session.channel?.setWindow(session.rows, session.cols, 0, 0)
+    }
     if (session.paused) {
       session.paused = false
       session.channel?.resume()
@@ -226,54 +277,7 @@ export class DirectSshTerminalSessions {
     }
     session.channel = channel
     session.state = 'live'
-    this.wireChannel(session, channel)
-  }
-
-  private wireChannel(session: TerminalSession, channel: ClientChannel): void {
-    const stdout = new StringDecoder('utf8')
-    channel.on('data', (chunk: Buffer) => this.onData(session, channel, stdout.write(chunk)))
-    channel.on('exit', (code: number | null) => {
-      if (session.channel === channel) {
-        session.exitCode = typeof code === 'number' ? code : SIGNALLED_EXIT_CODE
-      }
-    })
-    // Channel errors surface as close; the close handler owns the verdict.
-    channel.on('error', () => {})
-    channel.on('close', () => this.onChannelClose(session, channel))
-  }
-
-  private onData(session: TerminalSession, channel: ClientChannel, data: string): void {
-    if (session.channel !== channel || !data) {
-      return
-    }
-    if (!this.emit(session, { kind: 'data', sessionId: session.id, data })) {
-      this.remove(session)
-      return
-    }
-    session.unacked += data.length
-    if (!session.paused && session.unacked > PAUSE_ABOVE_UNACKED) {
-      session.paused = true
-      channel.pause()
-    }
-  }
-
-  private onChannelClose(session: TerminalSession, channel: ClientChannel): void {
-    if (session.channel !== channel) {
-      return
-    }
-    session.channel = null
-    if (session.exitCode !== null) {
-      // The remote shell reported its own end; a zero code is a clean logout.
-      this.remove(session, session.exitCode)
-      return
-    }
-    if (this.deps.getConnection(session.targetId)?.getState().status === 'connected') {
-      // The transport is healthy, so the shell died without reporting an exit.
-      this.remove(session, DROPPED_EXIT_CODE)
-      return
-    }
-    session.state = 'reattaching'
-    this.emit(session, { kind: 'reconnecting', sessionId: session.id })
+    wireSessionChannel(session, channel, this.channelHost)
   }
 
   private async reattach(session: TerminalSession): Promise<void> {
@@ -303,8 +307,12 @@ export class DirectSshTerminalSessions {
       return
     }
     this.sessions.delete(session.id)
-    if (this.byTarget.get(session.targetId) === session) {
-      this.byTarget.delete(session.targetId)
+    const ids = this.byTarget.get(session.targetId)
+    if (ids) {
+      ids.delete(session.id)
+      if (ids.size === 0) {
+        this.byTarget.delete(session.targetId)
+      }
     }
     const channel = session.channel
     session.channel = null
@@ -327,10 +335,4 @@ export class DirectSshTerminalSessions {
     const session = typeof sessionId === 'string' ? this.sessions.get(sessionId) : undefined
     return session && session.owner === owner ? session : null
   }
-}
-
-function clampSize(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value)
-    ? Math.min(MAX_SIZE, Math.max(MIN_SIZE, Math.floor(value)))
-    : fallback
 }

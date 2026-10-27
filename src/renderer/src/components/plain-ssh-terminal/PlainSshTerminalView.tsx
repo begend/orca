@@ -20,7 +20,6 @@ import {
   buildPreviewTerminalOptions
 } from '@/components/dashboard-popout/preview-terminal-options'
 import { openStandaloneTerminal } from '@/components/standalone-terminal/open-standalone-terminal'
-import { removePlainSshPanel } from '@/ssh/plain-ssh-terminal-panels'
 
 export type PlainSshTerminalPhase =
   | { kind: 'opening' }
@@ -88,11 +87,20 @@ function resolveThemeColors(
 export function PlainSshTerminalView({
   targetId,
   hidden,
-  onPhase
+  onPhase,
+  sessionKey,
+  attachSessionId,
+  onCleanExit
 }: {
   targetId: string
   hidden: boolean
   onPhase: (phase: PlainSshTerminalPhase) => void
+  /** Unique per terminal instance; names the session for paste planning. */
+  sessionKey: string
+  /** Direct hosts: attach this listed session instead of allocating a fresh shell. */
+  attachSessionId?: string
+  /** A clean remote logout ends the session; the caller decides what that closes. */
+  onCleanExit: () => void
 }): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const terminalRef = useRef<Terminal | null>(null)
@@ -105,12 +113,14 @@ export function PlainSshTerminalView({
   const systemPrefersDarkRef = useRef(systemPrefersDark)
   const macOptionAsAltRef = useRef(macOptionAsAlt)
   const onPhaseRef = useRef(onPhase)
+  const onCleanExitRef = useRef(onCleanExit)
   useLayoutEffect(() => {
     settingsRef.current = settings
     systemPrefersDarkRef.current = systemPrefersDark
     macOptionAsAltRef.current = macOptionAsAlt
     onPhaseRef.current = onPhase
-  }, [settings, systemPrefersDark, macOptionAsAlt, onPhase])
+    onCleanExitRef.current = onCleanExit
+  }, [settings, systemPrefersDark, macOptionAsAlt, onPhase, onCleanExit])
 
   useEffect(() => {
     const container = containerRef.current
@@ -135,7 +145,7 @@ export function PlainSshTerminalView({
         scrollback: SCROLLBACK_ROWS
       }),
       kittyKeyboardModes,
-      sessionKey: `plain-ssh:${targetId}`,
+      sessionKey,
       sendInput: (data) => {
         if (!sessionId) {
           return false
@@ -214,7 +224,7 @@ export function PlainSshTerminalView({
       const clean = event.exitCode === 0 && !event.signal
       finish(clean ? null : { kind: 'ended', exitCode: event.exitCode, signal: event.signal })
       if (clean) {
-        removePlainSshPanel(targetId)
+        onCleanExitRef.current()
       }
     }
     unsubscribe = api.onEvent((event) => {
@@ -240,8 +250,11 @@ export function PlainSshTerminalView({
         handle(event, sessionId)
       }
     })
+    const openRequest = attachSessionId
+      ? { sessionId: attachSessionId }
+      : ({ newSession: true } as const)
     void api
-      .open({ targetId, cols: terminal.cols, rows: terminal.rows })
+      .open({ targetId, cols: terminal.cols, rows: terminal.rows, ...openRequest })
       .then((result) => {
         if (disposed) {
           if (result.ok) {
@@ -301,7 +314,7 @@ export function PlainSshTerminalView({
       terminalRef.current = null
       fitRef.current = null
     }
-  }, [targetId])
+  }, [targetId, attachSessionId, sessionKey])
 
   // Why: appearance and Option-as-Alt changes must land live; reopening would hang up ssh.
   useEffect(() => {

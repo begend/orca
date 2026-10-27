@@ -8,11 +8,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SshManagedServerStatus } from '../../../../shared/ssh-types'
 import type {
   PlainSshTerminalEvent,
+  PlainSshTerminalOpenRequest,
   PlainSshTerminalOpenResult
 } from '../../../../shared/plain-ssh-terminal'
 import { OpenPlainSshTerminalButton } from './OpenPlainSshTerminalButton'
 import { PlainSshTerminalPanels } from './PlainSshTerminalPanels'
-import { removePlainSshPanel } from '@/ssh/plain-ssh-terminal-panels'
+import { removePlainSshPanel, showPlainSshPanel } from '@/ssh/plain-ssh-terminal-panels'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAppStore } from '@/store'
 import { getDefaultSettings } from '../../../../shared/constants'
@@ -53,15 +54,26 @@ const blocked: SshManagedServerStatus = {
 }
 
 let emit: (event: PlainSshTerminalEvent) => void = () => {}
-const open = vi.fn<(args: unknown) => Promise<PlainSshTerminalOpenResult>>()
+const open = vi.fn<(args: PlainSshTerminalOpenRequest) => Promise<PlainSshTerminalOpenResult>>()
 const close = vi.fn()
 const ack = vi.fn()
+const list = vi.fn<() => Promise<{ sessionIds: string[] }>>()
+// Every tab's terminal subscribes; events must reach all of them, not just the last subscriber.
+const eventSubscribers = new Set<(event: PlainSshTerminalEvent) => void>()
 
 beforeEach(() => {
   written.length = 0
   open.mockReset()
   close.mockReset()
   ack.mockReset()
+  list.mockReset()
+  list.mockResolvedValue({ sessionIds: [] })
+  eventSubscribers.clear()
+  emit = (event) => {
+    for (const subscriber of eventSubscribers) {
+      subscriber(event)
+    }
+  }
   Object.defineProperty(window, 'ResizeObserver', {
     configurable: true,
     // Full surface: a hovered header button's Tooltip positions itself with unobserve too.
@@ -78,11 +90,12 @@ beforeEach(() => {
         open,
         close,
         ack,
+        list,
         write: vi.fn(),
         resize: vi.fn(),
         onEvent: (callback: (event: PlainSshTerminalEvent) => void) => {
-          emit = callback
-          return () => {}
+          eventSubscribers.add(callback)
+          return () => eventSubscribers.delete(callback)
         }
       }
     }
@@ -147,7 +160,7 @@ describe('plain SSH terminal', () => {
 
     expect(screen.getByText('Plain SSH · lambda')).toBeInTheDocument()
     expect(screen.getByText(/Plain SSH — unmanaged\. Not an Orca workspace/)).toBeInTheDocument()
-    expect(open).toHaveBeenCalledWith({ targetId: 'lambda', cols: 80, rows: 24 })
+    expect(open).toHaveBeenCalledWith({ targetId: 'lambda', cols: 80, rows: 24, newSession: true })
 
     // ssh can print before the open reply arrives.
     act(() => emit({ kind: 'data', sessionId: 's1', data: 'Enter passphrase: ' }))
@@ -251,5 +264,115 @@ describe('plain SSH terminal', () => {
     await act(async () => resolveOpen({ ok: true, sessionId: 's3', label: 'lambda' }))
     await user.click(screen.getByRole('button', { name: 'Close and end session' }))
     expect(close).toHaveBeenCalledWith({ sessionId: 's3' })
+  })
+})
+
+describe('direct SSH host window', () => {
+  // Each direct open echoes the session it attached, or allocates a fresh shell's id.
+  function echoOpen(): void {
+    let fresh = 0
+    open.mockImplementation(async (request) => {
+      return { ok: true, sessionId: request.sessionId ?? `fresh-${++fresh}`, label: 'lambda' }
+    })
+  }
+
+  it('reattaches the host’s listed sessions as tabs after a reload', async () => {
+    echoOpen()
+    list.mockResolvedValue({ sessionIds: ['d1', 'd2'] })
+    render(<Harness status={blocked} />)
+    act(() => showPlainSshPanel('lambda', 'lambda', { direct: true }))
+
+    expect(await screen.findByRole('tab', { name: 'Terminal 1' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Terminal 2' })).toBeInTheDocument()
+    expect(open).toHaveBeenCalledWith({ targetId: 'lambda', cols: 80, rows: 24, sessionId: 'd1' })
+    expect(open).toHaveBeenCalledWith({ targetId: 'lambda', cols: 80, rows: 24, sessionId: 'd2' })
+    expect(screen.getByText(/Closing a tab ends that shell/)).toBeInTheDocument()
+  })
+
+  it('opens an independent shell in a new tab from the + button', async () => {
+    echoOpen()
+    render(<Harness status={blocked} />)
+    act(() => showPlainSshPanel('lambda', 'lambda', { direct: true }))
+    expect(await screen.findByRole('tab', { name: 'Terminal 1' })).toBeInTheDocument()
+    await waitFor(() =>
+      expect(open).toHaveBeenCalledWith({
+        targetId: 'lambda',
+        cols: 80,
+        rows: 24,
+        newSession: true
+      })
+    )
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'New terminal' }))
+    expect(screen.getByRole('tab', { name: 'Terminal 2' })).toBeInTheDocument()
+    expect(open).toHaveBeenCalledTimes(2)
+    expect(open).toHaveBeenLastCalledWith({
+      targetId: 'lambda',
+      cols: 80,
+      rows: 24,
+      newSession: true
+    })
+  })
+
+  it('hangs up only the closed tab’s session', async () => {
+    echoOpen()
+    list.mockResolvedValue({ sessionIds: ['d1', 'd2'] })
+    render(<Harness status={blocked} />)
+    act(() => showPlainSshPanel('lambda', 'lambda', { direct: true }))
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(2))
+    await act(async () => {}) // Let the open replies attach their session ids.
+
+    const user = userEvent.setup()
+    await user.click(screen.getAllByRole('button', { name: 'Close tab' })[0])
+    expect(close).toHaveBeenCalledTimes(1)
+    expect(close).toHaveBeenCalledWith({ sessionId: 'd1' })
+    expect(screen.getAllByRole('tab')).toHaveLength(1)
+    expect(screen.getByText('Plain SSH · lambda')).toBeInTheDocument()
+  })
+
+  it('closes only the logged-out tab and keeps its siblings', async () => {
+    echoOpen()
+    list.mockResolvedValue({ sessionIds: ['d1', 'd2'] })
+    render(<Harness status={blocked} />)
+    act(() => showPlainSshPanel('lambda', 'lambda', { direct: true }))
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(2))
+    await act(async () => {})
+
+    act(() => emit({ kind: 'exit', sessionId: 'd1', exitCode: 0 }))
+    await waitFor(() => expect(screen.getAllByRole('tab')).toHaveLength(1))
+    expect(screen.getByText('Plain SSH · lambda')).toBeInTheDocument()
+    // The clean exit already detached; unmount must not hang up a dead session id.
+    expect(close).not.toHaveBeenCalled()
+  })
+
+  it('shows the host’s file browser on the Files tab', async () => {
+    echoOpen()
+    list.mockResolvedValue({ sessionIds: ['d1'] })
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        plainSsh: window.api.plainSsh,
+        directSshFiles: {
+          home: vi.fn(async () => ({ ok: true, path: '/home/me' })),
+          list: vi.fn(async () => ({
+            ok: true,
+            path: '/home/me',
+            entries: [{ name: 'notes.txt', path: '/home/me/notes.txt', kind: 'file' }]
+          })),
+          onEvent: vi.fn(() => () => {})
+        }
+      }
+    })
+    render(<Harness status={blocked} />)
+    act(() => showPlainSshPanel('lambda', 'lambda', { direct: true }))
+
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('tab', { name: 'Files' }))
+    expect(await screen.findByText('notes.txt')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: 'Terminal 1' }))
+    expect(screen.queryByText('notes.txt')).toBeNull()
+    expect(screen.getByRole('tab', { name: 'Files' })).toBeInTheDocument()
   })
 })

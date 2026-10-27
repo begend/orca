@@ -18858,14 +18858,15 @@
       "plainSshTerminal": {
         "open": "Open plain SSH terminal",
         "unmanaged": "Plain SSH — unmanaged. Not an Orca workspace: agents and tabs here aren’t tracked, and this terminal isn’t restored. Closing it ends the SSH session.",
-        "ended": "ssh exited with code {{code}}. Close this window when you’re done reading.",
+        "unmanagedDirect": "Plain SSH — unmanaged. Not an Orca workspace: agents and tabs here aren’t tracked, and this terminal isn’t restored. Closing a tab ends that shell; closing the window ends them all.",
+        "ended": "ssh exited with code {{code}}. Close it when you’re done reading.",
         "title": "Plain SSH · {{host}}",
         "minimize": "Minimize",
         "close": "Close and end session",
         "unknownTarget": "This SSH host is no longer saved in Orca.",
         "notBlocked": "Orca can reach this host again, so use its terminals instead. Plain SSH is only for while Orca can’t set up on the host.",
         "alreadyOpen": "Another Orca window already has a plain SSH terminal open to this host.",
-        "endedBySignal": "ssh was stopped (signal {{signal}}). Close this window when you’re done reading.",
+        "endedBySignal": "ssh was stopped (signal {{signal}}). Close it when you’re done reading.",
         "cancelled": "This plain SSH terminal was closed before it started.",
         "terminalUnavailable": "Orca couldn’t open a terminal here.",
         "openHint": "Keeps you working on the host while Orca can’t set up there.",
@@ -18879,7 +18880,11 @@
         "filesUnavailable": "File browsing is not available in this build.",
         "notConnected": "This host is not connected. Connect it first.",
         "reconnecting": "— connection lost, reconnecting… —",
-        "reconnected": "— reconnected: this is a new shell on the host —"
+        "reconnected": "— reconnected: this is a new shell on the host —",
+        "newTab": "New terminal",
+        "closeTab": "Close tab",
+        "maximize": "Maximize",
+        "restore": "Restore"
       },
       "ClaudeAgentViewIndicator": {
         "viewing": "Currently viewing",

@@ -84,8 +84,9 @@ function endSessionsWithOwner(sender: WebContents): void {
 }
 
 export function registerPlainSshTerminalHandlers(): void {
-  const { open, write, resize, close, ack, event } = PLAIN_SSH_TERMINAL_CHANNELS
+  const { open, list, write, resize, close, ack, event } = PLAIN_SSH_TERMINAL_CHANNELS
   ipcMain.removeHandler(open)
+  ipcMain.removeHandler(list)
   ipcMain.removeAllListeners(write)
   ipcMain.removeAllListeners(resize)
   ipcMain.removeAllListeners(close)
@@ -93,7 +94,16 @@ export function registerPlainSshTerminalHandlers(): void {
 
   ipcMain.handle(
     open,
-    async (ipcEvent, args: { targetId?: unknown; cols?: unknown; rows?: unknown }) => {
+    async (
+      ipcEvent,
+      args: {
+        targetId?: unknown
+        cols?: unknown
+        rows?: unknown
+        newSession?: unknown
+        sessionId?: unknown
+      }
+    ) => {
       const sender = ipcEvent.sender
       endSessionsWithOwner(sender)
       const sink = (payload: PlainSshTerminalEvent): boolean => {
@@ -111,7 +121,12 @@ export function registerPlainSshTerminalHandlers(): void {
         const result = await getDirectSshTerminalSessions()!.open(
           target.id,
           sender.id,
-          { cols: args?.cols, rows: args?.rows },
+          {
+            cols: args?.cols,
+            rows: args?.rows,
+            newSession: args?.newSession,
+            sessionId: args?.sessionId
+          },
           sink
         )
         return result.ok ? { ...result, label: target.label } : result
@@ -123,16 +138,51 @@ export function registerPlainSshTerminalHandlers(): void {
       )
     }
   )
+  // Detached direct sessions survive a reload; the reopening window lists what it may adopt.
+  ipcMain.handle(list, (ipcEvent, args: { targetId?: unknown }) => {
+    const target =
+      typeof args?.targetId === 'string'
+        ? getSshTargetRegistryStore()?.getTarget(args.targetId)
+        : undefined
+    if (!target || target.owner || !isDirectSshTarget(target)) {
+      return { sessionIds: [] }
+    }
+    return {
+      sessionIds: getDirectSshTerminalSessions()?.listSessions(target.id, ipcEvent.sender.id) ?? []
+    }
+  })
+  // Dispatch by session ownership: direct ids live in their registry, everything else in the
+  // legacy PTY map — never guess from the target's current mode.
   ipcMain.on(write, (ipcEvent, args: { sessionId?: unknown; data?: unknown }) => {
+    const direct = getDirectSshTerminalSessions()
+    if (direct?.hasSession(args?.sessionId)) {
+      direct.write(args?.sessionId, ipcEvent.sender.id, args?.data)
+      return
+    }
     writePlainSshTerminal(args?.sessionId, ipcEvent.sender.id, args?.data)
   })
   ipcMain.on(resize, (ipcEvent, args: { sessionId?: unknown; cols?: unknown; rows?: unknown }) => {
+    const direct = getDirectSshTerminalSessions()
+    if (direct?.hasSession(args?.sessionId)) {
+      direct.resize(args?.sessionId, ipcEvent.sender.id, args?.cols, args?.rows)
+      return
+    }
     resizePlainSshTerminal(args?.sessionId, ipcEvent.sender.id, args?.cols, args?.rows)
   })
   ipcMain.on(close, (ipcEvent, args: { sessionId?: unknown }) => {
+    const direct = getDirectSshTerminalSessions()
+    if (direct?.hasSession(args?.sessionId)) {
+      direct.close(args?.sessionId, ipcEvent.sender.id)
+      return
+    }
     closePlainSshTerminal(args?.sessionId, ipcEvent.sender.id)
   })
   ipcMain.on(ack, (ipcEvent, args: { sessionId?: unknown; chars?: unknown }) => {
+    const direct = getDirectSshTerminalSessions()
+    if (direct?.hasSession(args?.sessionId)) {
+      direct.ack(args?.sessionId, ipcEvent.sender.id, args?.chars)
+      return
+    }
     ackPlainSshTerminal(args?.sessionId, ipcEvent.sender.id, args?.chars)
   })
 }
