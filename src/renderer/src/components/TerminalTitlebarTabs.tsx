@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom'
+import { useLayoutEffect, useState } from 'react'
 import type { TerminalTab } from '../../../shared/terminal-tab-types'
 import { useAppStore } from '../store'
 import TabBar from './tab-bar/TabBar'
@@ -22,6 +23,19 @@ export function TerminalTitlebarTabs({
   controller: TerminalController
 }): React.JSX.Element | null {
   const panels = usePlainSshPanels()
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    const target = document.getElementById('titlebar-tabs')
+    setPortalTarget(target)
+    if (!target || typeof MutationObserver === 'undefined') {
+      return
+    }
+    const observer = new MutationObserver(() => {
+      setPortalTarget(document.getElementById('titlebar-tabs'))
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [])
   const {
     activeBrowserTabId,
     activeFileId,
@@ -63,7 +77,8 @@ export function TerminalTitlebarTabs({
   const activePanel = panels.find((panel) => panel.direct && !panel.minimized)
   // In split layouts the per-group strips own the tabs, but an active direct-SSH surface covers
   // them; the unified titlebar bar must take over so workspace and SSH tabs stay reachable.
-  if (!titlebarTabsTarget || (effectiveActiveLayout && !activePanel)) {
+  const resolvedTitlebarTabsTarget = portalTarget ?? titlebarTabsTarget
+  if (!resolvedTitlebarTabsTarget || (effectiveActiveLayout && !activePanel)) {
     return null
   }
   // Minimized panels keep their tabs clickable here so they can be restored; none reads active.
@@ -84,7 +99,7 @@ export function TerminalTitlebarTabs({
       >
         {plainItems}
       </div>,
-      titlebarTabsTarget
+      resolvedTitlebarTabsTarget
     )
   }
   return createPortal(
@@ -140,6 +155,6 @@ export function TerminalTitlebarTabs({
       tabBarOrder={tabBarOrder}
       trailingItems={plainItems}
     />,
-    titlebarTabsTarget
+    resolvedTitlebarTabsTarget
   )
 }

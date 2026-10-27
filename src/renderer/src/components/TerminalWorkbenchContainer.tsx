@@ -26,7 +26,6 @@ export function TerminalWorkbenchContainer({
       data-terminal-workbench-container=""
     >
       {children}
-      <div id="plain-ssh-terminal-surface" className="pointer-events-none absolute inset-0 z-30" />
     </div>
   )
 }
