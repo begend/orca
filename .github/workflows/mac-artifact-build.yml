@@ -89,10 +89,21 @@ jobs:
       - name: Build mobile web bundle
         run: pnpm run build:mobile-web
 
+      # The config builds x64+arm64 slices; boot-verifying the x64 slice needs Rosetta on arm64 runners.
+      - name: Install Rosetta
+        run: sudo softwareupdate --install-rosetta --agree-to-license || true
+
       - name: Package macOS dmg and zip
         run: |
+          set -o pipefail
           pnpm ensure:electron-runtime
-          pnpm exec electron-builder --config config/electron-builder.config.cjs --mac --publish never
+          pnpm exec electron-builder --config config/electron-builder.config.cjs --mac --publish never 2>&1 | tee /tmp/mac-package.log || {
+            echo '## mac package failure tail' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -c 5000 /tmp/mac-package.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
         env:
           ORCA_BUILD_COMMIT: ${{ github.sha }}
 

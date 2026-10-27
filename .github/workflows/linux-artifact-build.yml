@@ -59,7 +59,8 @@ jobs:
       - name: Install Linux package tooling
         run: |
           timeout 120 sudo apt-get update || true
-          timeout 300 sudo apt-get install -y cpio rpm
+          # atspi/python3-gi back verify:computer-native's Linux provider import check.
+          timeout 300 sudo apt-get install -y cpio rpm python3-gi gir1.2-atspi-2.0 at-spi2-core
 
       - name: Build workspace packages
         run: pnpm run build:packages
@@ -93,8 +94,15 @@ jobs:
 
       - name: Package Linux AppImage, deb, and rpm
         run: |
+          set -o pipefail
           node config/scripts/ensure-native-runtime.mjs --runtime=electron
-          pnpm exec electron-builder --config config/electron-builder.config.cjs --linux AppImage deb rpm --x64 --publish never
+          pnpm exec electron-builder --config config/electron-builder.config.cjs --linux AppImage deb rpm --x64 --publish never 2>&1 | tee /tmp/linux-package.log || {
+            echo '## linux package failure tail' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -c 5000 /tmp/linux-package.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
         env:
           ORCA_BUILD_COMMIT: ${{ github.sha }}
 
