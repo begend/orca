@@ -45,13 +45,14 @@ jobs:
           restore-keys: |
             electron-builder-macos-
 
+      # Packaging builds x64+arm64 slices, so native variants for both arches must be installed.
       - name: Install dependencies
         uses: nick-fields/retry@v4
         with:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 30
-          command: pnpm install --frozen-lockfile
+          command: pnpm install:release
 
       - name: Install mobile workspace dependencies
         uses: ./.github/actions/install-mobile-dependencies
