@@ -3,6 +3,8 @@ import type { TerminalTab } from '../../../shared/terminal-tab-types'
 import { useAppStore } from '../store'
 import TabBar from './tab-bar/TabBar'
 import type { TerminalController } from './use-terminal-controller'
+import { minimizePlainSshPanels, usePlainSshPanels } from '@/ssh/plain-ssh-terminal-panels'
+import { PlainSshTabItems } from './plain-ssh-terminal/PlainSshTabItems'
 
 const EMPTY_TERMINAL_TABS: TerminalTab[] = []
 
@@ -19,6 +21,7 @@ export function TerminalTitlebarTabs({
 }: {
   controller: TerminalController
 }): React.JSX.Element | null {
+  const panels = usePlainSshPanels()
   const {
     activeBrowserTabId,
     activeFileId,
@@ -57,14 +60,37 @@ export function TerminalTitlebarTabs({
     worktreeClientHostedBrowserRows,
     worktreeFiles
   } = controller
-  if (!renderedActiveWorktreeId || effectiveActiveLayout || !titlebarTabsTarget) {
+  if (effectiveActiveLayout || !titlebarTabsTarget) {
     return null
+  }
+  const activePanel = panels.find((panel) => panel.direct && !panel.minimized)
+  // Minimized panels keep their tabs clickable here so they can be restored; none reads active.
+  const stripPanel = panels.find((panel) => panel.direct)
+  const activateWorkspaceTab = (tabId: string): void => {
+    minimizePlainSshPanels()
+    handleActivateTab(tabId)
+  }
+  const plainItems = stripPanel ? <PlainSshTabItems panel={stripPanel} /> : null
+  if (!renderedActiveWorktreeId) {
+    if (!stripPanel) {
+      return null
+    }
+    return createPortal(
+      <div
+        className="flex h-full min-w-0 items-stretch overflow-hidden border-r border-border/70"
+        role="tablist"
+      >
+        {plainItems}
+      </div>,
+      titlebarTabsTarget
+    )
   }
   return createPortal(
     <LiveTerminalTabBar
-      activeTabId={activeTabId}
+      // The SSH surface covers the workspace panes, so no workspace tab may read as active then.
+      activeTabId={activePanel ? null : activeTabId}
       worktreeId={renderedActiveWorktreeId}
-      onActivate={handleActivateTab}
+      onActivate={activateWorkspaceTab}
       onClose={handleCloseTab}
       onCloseOthers={handleCloseOthers}
       onCloseToRight={handleCloseTabsToRight}
@@ -110,6 +136,7 @@ export function TerminalTitlebarTabs({
       onMakePreviewFilePermanent={makePreviewFilePermanent}
       onPinFile={pinFile}
       tabBarOrder={tabBarOrder}
+      trailingItems={plainItems}
     />,
     titlebarTabsTarget
   )

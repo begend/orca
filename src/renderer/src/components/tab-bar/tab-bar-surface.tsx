@@ -168,6 +168,7 @@ export function renderTabBarSurface({
                   includeTopTabBorder={includeTopTabBorder}
                 />
               ) : null}
+              {props.trailingItems}
             </TabStripTooltipProvider>
           </div>
           <TabStripScrollIndicator

@@ -1,11 +1,13 @@
 // Keep one plain SSH window per host outside store/session; never persist, restore or sync it.
 import { useSyncExternalStore } from 'react'
 import { createBrowserUuid } from '@/lib/browser-uuid'
+import { useAppStore } from '@/store'
 
 /** A terminal tab inside a direct host's window; `attachSessionId` reattaches a listed session. */
 export type PlainSshPanelTab = {
   id: string
   attachSessionId?: string
+  customTitle?: string
 }
 
 /** Id of the pseudo-tab that shows the host's SFTP file browser. */
@@ -62,6 +64,12 @@ export function showPlainSshPanel(
           selectedTabId: null
         }
   ])
+  if (direct) {
+    const state = useAppStore.getState()
+    if (state.activeView !== 'terminal') {
+      state.setActiveView('terminal')
+    }
+  }
 }
 
 /** Adds a terminal tab and selects it; returns the tab id. */
@@ -95,9 +103,37 @@ export function closePlainSshPanelTab(targetId: string, tabId: string): void {
 }
 
 export function setActivePlainSshPanelTab(targetId: string, tabId: string): void {
-  patchPanel(targetId, (panel) =>
-    panel.selectedTabId === tabId ? panel : { ...panel, selectedTabId: tabId }
+  publish(
+    panels.map((panel) => {
+      if (panel.targetId === targetId) {
+        return {
+          ...panel,
+          minimized: false,
+          selectedTabId: tabId
+        }
+      }
+      return panel.minimized ? panel : { ...panel, minimized: true }
+    })
   )
+}
+
+export function setPlainSshPanelTabTitle(
+  targetId: string,
+  tabId: string,
+  customTitle: string | null
+): void {
+  patchPanel(targetId, (panel) => ({
+    ...panel,
+    tabs: panel.tabs.map((tab) =>
+      tab.id === tabId
+        ? { ...tab, ...(customTitle ? { customTitle } : { customTitle: undefined }) }
+        : tab
+    )
+  }))
+}
+
+export function minimizePlainSshPanels(): void {
+  publish(panels.map((panel) => (panel.minimized ? panel : { ...panel, minimized: true })))
 }
 
 export function minimizePlainSshPanel(targetId: string): void {

@@ -6,6 +6,7 @@ import RightSidebar from '../components/right-sidebar'
 import { RecoverableRenderErrorBoundary } from '../components/error-boundaries/RecoverableRenderErrorBoundary'
 import { FloatingTerminalToggleButton } from '../components/floating-terminal/FloatingTerminalToggleButton'
 import { TerminalWorkbenchContainer } from '../components/TerminalWorkbenchContainer'
+import { usePlainSshPanels } from '@/ssh/plain-ssh-terminal-panels'
 import type { VirtualizedScrollAnchor } from '../hooks/useVirtualizedScrollAnchor'
 import { TitlebarLeftControls } from './TitlebarLeftControls'
 import { RightSidebarToggle, TitlebarMainStrip } from './TitlebarMainStrip'
@@ -66,6 +67,7 @@ function WorktreeSidebar({
 
 function ActivePage({ layout }: { layout: AppChromeLayout }): React.JSX.Element {
   const { activeView, activeWorktreeId, activePendingCreationId, creationLayoutActive } = layout
+  const directSshActive = usePlainSshPanels().some((panel) => panel.direct && !panel.minimized)
   return (
     <>
       {activeView === 'settings' ? <Settings /> : null}
@@ -82,7 +84,13 @@ function ActivePage({ layout }: { layout: AppChromeLayout }): React.JSX.Element 
           reserveCollapsedSidebarHeaderSpace={layout.leftTitlebarChromeLayout.isFloating}
         />
       ) : null}
-      {activeView === 'terminal' && !activeWorktreeId && !creationLayoutActive ? <Landing /> : null}
+      {/* The SSH surface owns the workbench; Landing would fight it for the empty-workspace slot. */}
+      {activeView === 'terminal' &&
+      !activeWorktreeId &&
+      !creationLayoutActive &&
+      !directSshActive ? (
+        <Landing />
+      ) : null}
     </>
   )
 }
@@ -92,6 +100,9 @@ export function AppWorkspaceShell(props: {
   floatingWorkspace: FloatingWorkspacePanelState
 }): React.JSX.Element {
   const { layout, floatingWorkspace } = props
+  const hasActiveDirectSshPanel = usePlainSshPanels().some(
+    (panel) => panel.direct && !panel.minimized
+  )
   const titlebarLeftControls = <TitlebarLeftControls layout={layout} />
   const titlebarMainStrip = <TitlebarMainStrip layout={layout} />
   // Keep scroll memory above sidebar view remounts to preserve list position.
@@ -178,7 +189,13 @@ export function AppWorkspaceShell(props: {
                 )}
                 <div className="flex flex-1 min-w-0 min-h-0 flex-col">
                   {layout.shouldMountTerminalWorkbench ? (
-                    <TerminalWorkbenchContainer isVisible={layout.terminalWorkbenchVisible}>
+                    <TerminalWorkbenchContainer
+                      isVisible={layout.terminalWorkbenchVisible || hasActiveDirectSshPanel}
+                    >
+                      <div
+                        id="plain-ssh-terminal-surface"
+                        className="pointer-events-none absolute inset-0 z-30"
+                      />
                       <Suspense fallback={null}>
                         <RecoverableRenderErrorBoundary
                           boundaryId="terminal.workbench"

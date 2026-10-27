@@ -14,7 +14,7 @@ export function TerminalWorkbenchContainer({
     <div
       className={
         isVisible
-          ? 'flex flex-1 min-w-0 min-h-0'
+          ? 'relative flex flex-1 min-w-0 min-h-0'
           : retainBrowserGuestPaint
             ? // Remove the invisible workbench from flex flow so the active page keeps full height.
               'absolute inset-0 flex opacity-0 pointer-events-none'
@@ -26,6 +26,7 @@ export function TerminalWorkbenchContainer({
       data-terminal-workbench-container=""
     >
       {children}
+      <div id="plain-ssh-terminal-surface" className="pointer-events-none absolute inset-0 z-30" />
     </div>
   )
 }

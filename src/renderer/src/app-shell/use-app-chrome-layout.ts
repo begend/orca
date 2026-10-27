@@ -6,6 +6,7 @@ import { resolveLeftSidebarStyleVariables } from '@/lib/left-sidebar-appearance'
 import { resolveLeftTitlebarChromeLayout } from '@/lib/titlebar-left-chrome'
 import { shouldShowWorktreeCreationSurface } from '@/lib/worktree-creation-surface'
 import { useAppStore } from '../store'
+import { usePlainSshPanels } from '@/ssh/plain-ssh-terminal-panels'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../shared/constants'
 import { selectActiveTerminalChromeState } from '../store/active-terminal-chrome-selector'
 import { useSystemPrefersDark } from '../components/terminal-pane/use-system-prefers-dark'
@@ -19,6 +20,8 @@ export type AppChromeLayout = ReturnType<typeof useAppChromeLayout>
 /** Derive titlebar, tab-strip ownership and surface mount decisions from store state. */
 export function useAppChromeLayout() {
   const activeView = useAppStore((s) => s.activeView)
+  const plainSshPanels = usePlainSshPanels()
+  const activeDirectSshPanel = plainSshPanels.find((panel) => panel.direct && !panel.minimized)
   const sidebarOpen = useAppStore((s) => s.sidebarOpen)
   const rightSidebarOpen = useAppStore((s) => s.rightSidebarOpen)
   const rightSidebarTab = useAppStore((s) => s.rightSidebarTab)
@@ -56,7 +59,10 @@ export function useAppChromeLayout() {
     (s) => (s.unifiedTabsByWorktree[FLOATING_TERMINAL_WORKTREE_ID]?.length ?? 0) > 0
   )
   const canMountTerminalWorkbenchNow =
-    activeWorktreeId !== null || backgroundTerminalMountRequested || floatingWorkspaceHasTabs
+    activeWorktreeId !== null ||
+    activeDirectSshPanel !== undefined ||
+    backgroundTerminalMountRequested ||
+    floatingWorkspaceHasTabs
   // Use state so discarded renders cannot leak the mount latch; the OR below covers this render.
   const [hasMountedTerminalWorkbench, setHasMountedTerminalWorkbench] = useState(false)
   if (canMountTerminalWorkbenchNow && !hasMountedTerminalWorkbench) {
@@ -71,7 +77,9 @@ export function useAppChromeLayout() {
     hasActivePendingCreation: activePendingCreationExists
   })
   const workspaceChromeActive =
-    activeView === 'terminal' && activeWorktreeId !== null && !creationLayoutActive
+    activeView === 'terminal' &&
+    (activeWorktreeId !== null || activeDirectSshPanel !== undefined) &&
+    !creationLayoutActive
   const hasTabBar = tabCount >= 2
   // Activity/Space own full pages and hide the workspace sidebar.
   const showSidebar =
@@ -122,6 +130,7 @@ export function useAppChromeLayout() {
     activeView,
     activeWorktreeId,
     activePendingCreationId,
+    activeDirectSshPanel,
     activeTabCanExpand,
     effectiveActiveTabId,
     collapsedSidebarHeaderWidth,

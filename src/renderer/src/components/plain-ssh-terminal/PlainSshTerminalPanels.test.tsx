@@ -2,7 +2,7 @@
 
 import '@testing-library/jest-dom/vitest'
 
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SshManagedServerStatus } from '../../../../shared/ssh-types'
@@ -13,7 +13,12 @@ import type {
 } from '../../../../shared/plain-ssh-terminal'
 import { OpenPlainSshTerminalButton } from './OpenPlainSshTerminalButton'
 import { PlainSshTerminalPanels } from './PlainSshTerminalPanels'
-import { removePlainSshPanel, showPlainSshPanel } from '@/ssh/plain-ssh-terminal-panels'
+import { PlainSshTabItems } from './PlainSshTabItems'
+import {
+  removePlainSshPanel,
+  showPlainSshPanel,
+  usePlainSshPanels
+} from '@/ssh/plain-ssh-terminal-panels'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAppStore } from '@/store'
 import { getDefaultSettings } from '../../../../shared/constants'
@@ -123,6 +128,19 @@ function Harness({ status }: { status: SshManagedServerStatus | undefined }): Re
     <TooltipProvider>
       <OpenPlainSshTerminalButton targetId="lambda" targetLabel="lambda" status={status} />
       <PlainSshTerminalPanels />
+    </TooltipProvider>
+  )
+}
+
+// Direct panels mirror production: tabs live in the tab strip (titlebar), the shell surface
+// portals into the workbench host.
+function DirectHarness(): React.JSX.Element {
+  const panel = usePlainSshPanels().find((entry) => entry.direct)
+  return (
+    <TooltipProvider>
+      {panel ? <PlainSshTabItems panel={panel} /> : null}
+      <div id="plain-ssh-terminal-surface" />
+      <PlainSshTerminalPanels surfaceOnly targetId="lambda" />
     </TooltipProvider>
   )
 }
@@ -279,7 +297,7 @@ describe('direct SSH host window', () => {
   it('reattaches the host’s listed sessions as tabs after a reload', async () => {
     echoOpen()
     list.mockResolvedValue({ sessionIds: ['d1', 'd2'] })
-    render(<Harness status={blocked} />)
+    render(<DirectHarness />)
     act(() => showPlainSshPanel('lambda', 'lambda', { direct: true }))
 
     expect(await screen.findByRole('tab', { name: 'Terminal 1' })).toBeInTheDocument()
@@ -291,7 +309,7 @@ describe('direct SSH host window', () => {
 
   it('opens an independent shell in a new tab from the + button', async () => {
     echoOpen()
-    render(<Harness status={blocked} />)
+    render(<DirectHarness />)
     act(() => showPlainSshPanel('lambda', 'lambda', { direct: true }))
     expect(await screen.findByRole('tab', { name: 'Terminal 1' })).toBeInTheDocument()
     await waitFor(() =>
@@ -318,7 +336,7 @@ describe('direct SSH host window', () => {
   it('hangs up only the closed tab’s session', async () => {
     echoOpen()
     list.mockResolvedValue({ sessionIds: ['d1', 'd2'] })
-    render(<Harness status={blocked} />)
+    render(<DirectHarness />)
     act(() => showPlainSshPanel('lambda', 'lambda', { direct: true }))
     await waitFor(() => expect(open).toHaveBeenCalledTimes(2))
     await act(async () => {}) // Let the open replies attach their session ids.
@@ -334,7 +352,7 @@ describe('direct SSH host window', () => {
   it('closes only the logged-out tab and keeps its siblings', async () => {
     echoOpen()
     list.mockResolvedValue({ sessionIds: ['d1', 'd2'] })
-    render(<Harness status={blocked} />)
+    render(<DirectHarness />)
     act(() => showPlainSshPanel('lambda', 'lambda', { direct: true }))
     await waitFor(() => expect(open).toHaveBeenCalledTimes(2))
     await act(async () => {})
@@ -364,7 +382,7 @@ describe('direct SSH host window', () => {
         }
       }
     })
-    render(<Harness status={blocked} />)
+    render(<DirectHarness />)
     act(() => showPlainSshPanel('lambda', 'lambda', { direct: true }))
 
     const user = userEvent.setup()
@@ -374,5 +392,51 @@ describe('direct SSH host window', () => {
     await user.click(screen.getByRole('tab', { name: 'Terminal 1' }))
     expect(screen.queryByText('notes.txt')).toBeNull()
     expect(screen.getByRole('tab', { name: 'Files' })).toBeInTheDocument()
+  })
+
+  it('renames a tab inline and clears back to the default label', async () => {
+    echoOpen()
+    list.mockResolvedValue({ sessionIds: ['d1'] })
+    render(<DirectHarness />)
+    act(() => showPlainSshPanel('lambda', 'lambda', { direct: true }))
+    const tab = await screen.findByRole('tab', { name: 'Terminal 1' })
+    await waitFor(() => expect(open).toHaveBeenCalled())
+
+    const user = userEvent.setup()
+    await user.dblClick(tab)
+    const input = screen.getByLabelText('Rename tab Terminal 1')
+    await user.clear(input)
+    await user.type(input, 'Build box{Enter}')
+    expect(screen.getByRole('tab', { name: 'Build box' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Terminal 1' })).toBeNull()
+
+    // Renaming must not touch the live shell behind the tab.
+    expect(close).not.toHaveBeenCalled()
+
+    await user.dblClick(screen.getByRole('tab', { name: 'Build box' }))
+    await user.clear(screen.getByLabelText('Rename tab Build box'))
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('tab', { name: 'Terminal 1' })).toBeInTheDocument()
+  })
+
+  it('keeps the drafted name on Escape and ignores IME composition Enter', async () => {
+    echoOpen()
+    list.mockResolvedValue({ sessionIds: ['d1'] })
+    render(<DirectHarness />)
+    act(() => showPlainSshPanel('lambda', 'lambda', { direct: true }))
+    const tab = await screen.findByRole('tab', { name: 'Terminal 1' })
+    await waitFor(() => expect(open).toHaveBeenCalled())
+
+    const user = userEvent.setup()
+    await user.dblClick(tab)
+    const input = screen.getByLabelText('Rename tab Terminal 1')
+    await user.type(input, 'Draft')
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('tab', { name: 'Terminal 1' })).toBeInTheDocument()
+
+    await user.dblClick(screen.getByRole('tab', { name: 'Terminal 1' }))
+    const editing = screen.getByLabelText('Rename tab Terminal 1')
+    fireEvent.keyDown(editing, { key: 'Enter', keyCode: 229 })
+    expect(screen.getByLabelText('Rename tab Terminal 1')).toBeInTheDocument()
   })
 })
