@@ -60,10 +60,12 @@ export function TerminalTitlebarTabs({
     worktreeClientHostedBrowserRows,
     worktreeFiles
   } = controller
-  if (effectiveActiveLayout || !titlebarTabsTarget) {
+  const activePanel = panels.find((panel) => panel.direct && !panel.minimized)
+  // In split layouts the per-group strips own the tabs, but an active direct-SSH surface covers
+  // them; the unified titlebar bar must take over so workspace and SSH tabs stay reachable.
+  if (!titlebarTabsTarget || (effectiveActiveLayout && !activePanel)) {
     return null
   }
-  const activePanel = panels.find((panel) => panel.direct && !panel.minimized)
   // Minimized panels keep their tabs clickable here so they can be restored; none reads active.
   const stripPanel = panels.find((panel) => panel.direct)
   const activateWorkspaceTab = (tabId: string): void => {
