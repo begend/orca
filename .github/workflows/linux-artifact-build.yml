@@ -1,0 +1,83 @@
+# Personal-branch Linux package build: uploads AppImage/deb/rpm as run artifacts instead of
+# publishing to a channel. No signing, no dev-channel identity, no orcad template.
+name: Linux artifact build
+
+on:
+  push:
+    branches: [feat/ssh-host-password]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/setup@v2
+        with:
+          install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+          check-latest: true
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            mobile/pnpm-lock.yaml
+
+      - name: Cache electron-builder downloads
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-builder-linux-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            electron-builder-linux-
+
+      - name: Install dependencies
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: pnpm install --frozen-lockfile
+
+      - name: Install mobile workspace dependencies
+        uses: ./.github/actions/install-mobile-dependencies
+
+      - name: Install Linux package tooling
+        run: |
+          timeout 120 sudo apt-get update || true
+          timeout 300 sudo apt-get install -y cpio rpm
+
+      - name: Build app
+        run: pnpm build:release
+        env:
+          # Unset dev build identity so official stable/rc telemetry stays silent.
+          ORCA_DIAGNOSTICS_TOKEN_URL: https://www.onorca.dev/diagnostics/token
+
+      - name: Package Linux AppImage, deb, and rpm
+        run: |
+          node config/scripts/ensure-native-runtime.mjs --runtime=electron
+          pnpm exec electron-builder --config config/electron-builder.config.cjs --linux AppImage deb rpm --x64 --publish never
+        env:
+          ORCA_BUILD_COMMIT: ${{ github.sha }}
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: orca-linux-packages
+          path: |
+            dist/orca-linux.AppImage
+            dist/orca-ide_*.deb
+            dist/orca-ide-*.rpm
+          if-no-files-found: error
+          retention-days: 14

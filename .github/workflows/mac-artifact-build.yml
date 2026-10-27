@@ -1,0 +1,84 @@
+# Personal-branch macOS build: uploads unsigned dmg/zip as run artifacts instead of
+# publishing to a dev channel. No signing identity, no notarization, no orcad template.
+name: macOS artifact build
+
+on:
+  push:
+    branches: [feat/ssh-host-password]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/setup@v2
+        with:
+          install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+          check-latest: true
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            mobile/pnpm-lock.yaml
+
+      - name: Cache electron-builder downloads
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: electron-builder-macos-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            electron-builder-macos-
+
+      - name: Install dependencies
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: pnpm install --frozen-lockfile
+
+      - name: Install mobile workspace dependencies
+        uses: ./.github/actions/install-mobile-dependencies
+
+      # verify:computer-native inside build:release needs the helper built first.
+      - name: Build macOS native helpers
+        run: |
+          pnpm build:computer-macos
+          pnpm build:keyboard-layout-macos
+          pnpm build:notification-status-macos
+
+      - name: Build app
+        run: pnpm build:release
+        env:
+          # Unset dev build identity so official stable/rc telemetry stays silent.
+          ORCA_DIAGNOSTICS_TOKEN_URL: https://www.onorca.dev/diagnostics/token
+
+      - name: Package macOS dmg and zip
+        run: |
+          pnpm ensure:electron-runtime
+          pnpm exec electron-builder --config config/electron-builder.config.cjs --mac --publish never
+        env:
+          ORCA_BUILD_COMMIT: ${{ github.sha }}
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: orca-macos-packages
+          path: |
+            dist/orca-macos-*.dmg
+            dist/orca-macos-*.zip
+          if-no-files-found: error
+          retention-days: 14
