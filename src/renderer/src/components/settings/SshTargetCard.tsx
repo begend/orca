@@ -19,6 +19,7 @@ import {
 import { isSshTargetConnecting, type SshTargetBusyAction } from './ssh-target-action-state'
 import { sshIdentityFileName } from './ssh-target-list-model'
 import { isManagedServerSshHost } from './SshManagedHostRemoveDialog'
+import { DirectSshFilesDialog } from '../plain-ssh-terminal/DirectSshFilesDialog'
 import {
   SshTargetServerDialogs,
   SshTargetServerMenuItems,
@@ -156,9 +157,17 @@ export function SshTargetCard({
         <>
           {/* A closed host panel must be reopenable without a disconnect round-trip. */}
           {state?.plainSsh ? (
-            <Button variant="ghost" size="xs" onClick={handleConnect} disabled={hasActionInFlight}>
-              {translate('auto.components.settings.SshTargetCard.openPanel', 'Open panel')}
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={handleConnect}
+                disabled={hasActionInFlight}
+              >
+                {translate('auto.components.settings.SshTargetCard.openPanel', 'Open panel')}
+              </Button>
+              <DirectSshFilesDialog targetId={target.id} targetLabel={target.label} />
+            </>
           ) : null}
           <Button variant="ghost" size="xs" onClick={handleDisconnect} disabled={hasActionInFlight}>
             {translate('auto.components.settings.SshTargetCard.4c86f30877', 'Disconnect')}

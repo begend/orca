@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
   requestRemove: vi.fn(),
   requestBulkRemove: vi.fn(),
   openSettingsTarget: vi.fn(),
-  showPlainSshPanel: vi.fn(),
+  openDirectSshTerminal: vi.fn(),
   connectionStates: new Map<string, SshConnectionState>(),
   sshTargetLabels: new Map<string, string>()
 }))
@@ -45,8 +45,8 @@ vi.mock('@/store', () => {
 vi.mock('@/ssh/ssh-old-relay-terminals-action', () => ({
   useSshConnectFailureToast: () => vi.fn()
 }))
-vi.mock('@/ssh/plain-ssh-terminal-panels', () => ({
-  showPlainSshPanel: mocks.showPlainSshPanel
+vi.mock('@/ssh/direct-ssh-terminal-tabs', () => ({
+  openDirectSshTerminal: mocks.openDirectSshTerminal
 }))
 vi.mock('./SshTargetForm', () => ({ SshTargetForm: () => null, EMPTY_FORM: {} }))
 vi.mock('./SshTargetDestructiveActions', () => ({
@@ -278,7 +278,7 @@ describe('one-click direct SSH sign-in', () => {
     await act(async () => {
       connect?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
-    expect(mocks.showPlainSshPanel).toHaveBeenCalledWith('box', 'Build box', { direct: true })
+    expect(mocks.openDirectSshTerminal).toHaveBeenCalledWith('box', 'Build box')
   })
 })
 

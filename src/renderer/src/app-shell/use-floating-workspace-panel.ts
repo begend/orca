@@ -7,6 +7,7 @@ import { createFloatingWorkspaceTourInteractionSnapshot } from '@/lib/floating-w
 import { persistFloatingTerminalPanelOpen } from '../components/floating-terminal/floating-terminal-panel-view-state'
 import { useAppStore } from '../store'
 import { selectFloatingVisibleTabCount } from '../store/selectors'
+import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../shared/constants'
 
 export type FloatingWorkspacePanelState = ReturnType<typeof useFloatingWorkspacePanel>
 
@@ -28,6 +29,11 @@ export function useFloatingWorkspacePanel() {
   )
   const statusBarVisible = useAppStore((s) => s.statusBarVisible)
   const visibleTabCount = useAppStore(selectFloatingVisibleTabCount)
+  // Direct-SSH shells land here when no workspace is open; they must stay reachable even
+  // when the floating-terminal toggle itself is disabled in settings.
+  const hasDirectHostTabs = useAppStore((s) =>
+    (s.tabsByWorktree[FLOATING_TERMINAL_WORKTREE_ID] ?? []).some((tab) => tab.directSsh)
+  )
 
   // Return focus to the prior surface when hotkey-minimizing the overlay.
   const returnFocusRef = useRef<HTMLElement | null>(null)
@@ -111,10 +117,11 @@ export function useFloatingWorkspacePanel() {
 
   useEffect(() => {
     // Only hydrated flag-off means disable; closing during settings load would discard restored open state.
-    if (settingsHydrated && !enabled) {
+    // A panel hosting direct-SSH shells ignores the disable: those shells have no other surface.
+    if (settingsHydrated && !enabled && !hasDirectHostTabs) {
       setOpenWithFocus(false)
     }
-  }, [settingsHydrated, enabled, setOpenWithFocus])
+  }, [settingsHydrated, enabled, hasDirectHostTabs, setOpenWithFocus])
 
   return {
     cancelReturnFocusFrame,
@@ -123,7 +130,7 @@ export function useFloatingWorkspacePanel() {
     openMaximized,
     setOpenWithFocus,
     // Retain panes’ local state while closed once the floating workspace owns tabs.
-    shouldMountPanel: enabled && (open || visibleTabCount > 0),
+    shouldMountPanel: (enabled && (open || visibleTabCount > 0)) || hasDirectHostTabs,
     showToggleButton: enabled && (triggerLocation === 'floating-button' || !statusBarVisible),
     tourInteractionSnapshotRef,
     visibleTabCount

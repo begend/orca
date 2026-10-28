@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Maximize2, Minus, Minimize2, SquareTerminal, X } from 'lucide-react'
 import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
@@ -12,32 +12,19 @@ import {
   type FloatingTerminalPanelBounds
 } from '@/components/floating-terminal/floating-terminal-panel-bounds'
 import {
-  PLAIN_SSH_FILES_TAB_ID,
-  addPlainSshPanelTab,
-  closePlainSshPanelTab,
-  getPlainSshPanel,
   minimizePlainSshPanel,
   removePlainSshPanel,
-  setActivePlainSshPanelTab,
   showPlainSshPanel,
   usePlainSshPanels,
   type PlainSshPanel
 } from '@/ssh/plain-ssh-terminal-panels'
 import { PlainSshTerminalView, type PlainSshTerminalPhase } from './PlainSshTerminalView'
-import { DirectSshFileBrowser } from './DirectSshFileBrowser'
-import { DirectTerminalTabBody, phaseText } from './PlainSshTerminalTabStrip'
+import { phaseText } from './PlainSshTerminalTabStrip'
 
 export function plainSshUnmanagedNotice(): string {
   return translate(
     'auto.components.plainSshTerminal.unmanaged',
     'Plain SSH — unmanaged. Not an Orca workspace: agents and tabs here aren’t tracked, and this terminal isn’t restored. Closing it ends the SSH session.'
-  )
-}
-
-export function plainSshDirectUnmanagedNotice(): string {
-  return translate(
-    'auto.components.plainSshTerminal.unmanagedDirect',
-    'Plain SSH — unmanaged. Not an Orca workspace: agents and tabs here aren’t tracked, and this terminal isn’t restored. Closing a tab ends that shell; closing the window ends them all.'
   )
 }
 
@@ -67,92 +54,6 @@ type CardDrag = {
   startX: number
   startY: number
   bounds: FloatingTerminalPanelBounds
-}
-
-/** Adopt the host's detached sessions (or start one shell); mount-only, the store owns tabs after. */
-function useDirectSessionAdoption(panel: PlainSshPanel): void {
-  useEffect(() => {
-    if (!panel.direct) {
-      return
-    }
-    let cancelled = false
-    void window.api.plainSsh
-      ?.list({ targetId: panel.targetId })
-      .then(({ sessionIds }) => {
-        if (cancelled) {
-          return
-        }
-        // Read the live store: tabs added by a raced "+" click or StrictMode remount must not duplicate shells.
-        const current = getPlainSshPanel(panel.targetId)
-        const known = new Set((current?.tabs ?? []).map((tab) => tab.attachSessionId))
-        const fresh = sessionIds.filter((sessionId) => !known.has(sessionId))
-        if (fresh.length > 0) {
-          for (const sessionId of fresh) {
-            addPlainSshPanelTab(panel.targetId, { attachSessionId: sessionId })
-          }
-          if (!current || current.selectedTabId === null) {
-            setActivePlainSshPanelTab(panel.targetId, fresh[0])
-          }
-        } else if ((current?.tabs.length ?? 0) === 0) {
-          addPlainSshPanelTab(panel.targetId)
-        }
-      })
-      .catch(() => {
-        const current = getPlainSshPanel(panel.targetId)
-        if (!cancelled && (current?.tabs.length ?? 0) === 0) {
-          addPlainSshPanelTab(panel.targetId)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-    // Mount-only: the panel store owns tabs from here on.
-  }, [panel.direct, panel.targetId])
-}
-
-/**
- * Direct-host surface inside the workspace workbench; the titlebar tab strip owns its tabs.
- * Minimized panels stay mounted: unmounting would tear down their xterms and SSH shells.
- */
-function DirectSshSurfacePanel({ panel }: { panel: PlainSshPanel }): React.JSX.Element {
-  const filesAvailable = Boolean(window.api.directSshFiles)
-  useDirectSessionAdoption(panel)
-  return (
-    <section
-      aria-label={translate('auto.components.plainSshTerminal.title', 'Plain SSH · {{host}}', {
-        host: panel.label
-      })}
-      data-plain-ssh-terminal={panel.targetId}
-      className={cn(
-        'pointer-events-auto absolute inset-0 flex min-h-0 flex-col overflow-hidden bg-background text-foreground',
-        panel.minimized && 'hidden'
-      )}
-    >
-      <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border px-3">
-        <SquareTerminal className="size-3.5 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 truncate text-xs font-semibold">
-          {translate('auto.components.plainSshTerminal.title', 'Plain SSH · {{host}}', {
-            host: panel.label
-          })}
-        </span>
-      </div>
-      <p className="border-b border-border bg-muted px-3 py-1 text-2xs text-status-warning">
-        {plainSshDirectUnmanagedNotice()}
-      </p>
-      {panel.tabs.map((tab) => (
-        <DirectTerminalTabBody
-          key={tab.id}
-          panel={panel}
-          tab={tab}
-          hidden={panel.minimized || panel.selectedTabId !== tab.id}
-          onCloseTab={() => closePlainSshPanelTab(panel.targetId, tab.id)}
-        />
-      ))}
-      {filesAvailable && panel.selectedTabId === PLAIN_SSH_FILES_TAB_ID ? (
-        <DirectSshFileBrowser targetId={panel.targetId} />
-      ) : null}
-    </section>
-  )
 }
 
 /** A non-modal host window over Orca; minimized windows wait in a strip at the bottom right. */
@@ -313,29 +214,19 @@ function PlainSshTerminalCard({ panel }: { panel: PlainSshPanel }): React.JSX.El
 }
 
 /**
- * `surfaceOnly` renders one direct-host panel for the workbench portal (tab strip lives in the
- * titlebar); the default renders the legacy escape-hatch cards, which keep their own chrome.
+ * Legacy escape-hatch cards for blocked hosts whose plain sessions are owner-bound and
+ * intentionally non-restorable. Direct hosts never reach here: their shells are canonical
+ * terminal tabs rendered by the standard workbench.
  */
-export function PlainSshTerminalPanels({
-  surfaceOnly = false,
-  targetId
-}: {
-  surfaceOnly?: boolean
-  targetId?: string
-}): React.JSX.Element | null {
+export function PlainSshTerminalPanels(): React.JSX.Element | null {
   const panels = usePlainSshPanels()
-  if (surfaceOnly) {
-    const panel = panels.find((entry) => entry.targetId === targetId && entry.direct)
-    return panel ? <DirectSshSurfacePanel panel={panel} /> : null
-  }
-  const legacy = panels.filter((panel) => !panel.direct)
-  if (legacy.length === 0) {
+  if (panels.length === 0) {
     return null
   }
-  const minimized = legacy.filter((panel) => panel.minimized)
+  const minimized = panels.filter((panel) => panel.minimized)
   return (
     <div className="pointer-events-none fixed inset-0 z-50">
-      {legacy.map((panel) => (
+      {panels.map((panel) => (
         <PlainSshTerminalCard key={panel.targetId} panel={panel} />
       ))}
       {minimized.length > 0 ? (

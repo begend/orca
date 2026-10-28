@@ -2,7 +2,7 @@
 
 import '@testing-library/jest-dom/vitest'
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SshManagedServerStatus } from '../../../../shared/ssh-types'
@@ -13,12 +13,7 @@ import type {
 } from '../../../../shared/plain-ssh-terminal'
 import { OpenPlainSshTerminalButton } from './OpenPlainSshTerminalButton'
 import { PlainSshTerminalPanels } from './PlainSshTerminalPanels'
-import { PlainSshTabItems } from './PlainSshTabItems'
-import {
-  removePlainSshPanel,
-  showPlainSshPanel,
-  usePlainSshPanels
-} from '@/ssh/plain-ssh-terminal-panels'
+import { removePlainSshPanel } from '@/ssh/plain-ssh-terminal-panels'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAppStore } from '@/store'
 import { getDefaultSettings } from '../../../../shared/constants'
@@ -128,19 +123,6 @@ function Harness({ status }: { status: SshManagedServerStatus | undefined }): Re
     <TooltipProvider>
       <OpenPlainSshTerminalButton targetId="lambda" targetLabel="lambda" status={status} />
       <PlainSshTerminalPanels />
-    </TooltipProvider>
-  )
-}
-
-// Direct panels mirror production: tabs live in the tab strip (titlebar), the shell surface
-// portals into the workbench host.
-function DirectHarness(): React.JSX.Element {
-  const panel = usePlainSshPanels().find((entry) => entry.direct)
-  return (
-    <TooltipProvider>
-      {panel ? <PlainSshTabItems panel={panel} /> : null}
-      <div id="plain-ssh-terminal-surface" />
-      <PlainSshTerminalPanels surfaceOnly targetId="lambda" />
     </TooltipProvider>
   )
 }
@@ -282,161 +264,5 @@ describe('plain SSH terminal', () => {
     await act(async () => resolveOpen({ ok: true, sessionId: 's3', label: 'lambda' }))
     await user.click(screen.getByRole('button', { name: 'Close and end session' }))
     expect(close).toHaveBeenCalledWith({ sessionId: 's3' })
-  })
-})
-
-describe('direct SSH host window', () => {
-  // Each direct open echoes the session it attached, or allocates a fresh shell's id.
-  function echoOpen(): void {
-    let fresh = 0
-    open.mockImplementation(async (request) => {
-      return { ok: true, sessionId: request.sessionId ?? `fresh-${++fresh}`, label: 'lambda' }
-    })
-  }
-
-  it('reattaches the host’s listed sessions as tabs after a reload', async () => {
-    echoOpen()
-    list.mockResolvedValue({ sessionIds: ['d1', 'd2'] })
-    render(<DirectHarness />)
-    act(() => showPlainSshPanel('lambda', 'lambda', { direct: true }))
-
-    expect(await screen.findByRole('tab', { name: 'Terminal 1' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Terminal 2' })).toBeInTheDocument()
-    expect(open).toHaveBeenCalledWith({ targetId: 'lambda', cols: 80, rows: 24, sessionId: 'd1' })
-    expect(open).toHaveBeenCalledWith({ targetId: 'lambda', cols: 80, rows: 24, sessionId: 'd2' })
-    expect(screen.getByText(/Closing a tab ends that shell/)).toBeInTheDocument()
-  })
-
-  it('opens an independent shell in a new tab from the + button', async () => {
-    echoOpen()
-    render(<DirectHarness />)
-    act(() => showPlainSshPanel('lambda', 'lambda', { direct: true }))
-    expect(await screen.findByRole('tab', { name: 'Terminal 1' })).toBeInTheDocument()
-    await waitFor(() =>
-      expect(open).toHaveBeenCalledWith({
-        targetId: 'lambda',
-        cols: 80,
-        rows: 24,
-        newSession: true
-      })
-    )
-
-    const user = userEvent.setup()
-    await user.click(screen.getByRole('button', { name: 'New terminal' }))
-    expect(screen.getByRole('tab', { name: 'Terminal 2' })).toBeInTheDocument()
-    expect(open).toHaveBeenCalledTimes(2)
-    expect(open).toHaveBeenLastCalledWith({
-      targetId: 'lambda',
-      cols: 80,
-      rows: 24,
-      newSession: true
-    })
-  })
-
-  it('hangs up only the closed tab’s session', async () => {
-    echoOpen()
-    list.mockResolvedValue({ sessionIds: ['d1', 'd2'] })
-    render(<DirectHarness />)
-    act(() => showPlainSshPanel('lambda', 'lambda', { direct: true }))
-    await waitFor(() => expect(open).toHaveBeenCalledTimes(2))
-    await act(async () => {}) // Let the open replies attach their session ids.
-
-    const user = userEvent.setup()
-    await user.click(screen.getAllByRole('button', { name: 'Close tab' })[0])
-    expect(close).toHaveBeenCalledTimes(1)
-    expect(close).toHaveBeenCalledWith({ sessionId: 'd1' })
-    expect(screen.getAllByRole('tab')).toHaveLength(1)
-    expect(screen.getByText('Plain SSH · lambda')).toBeInTheDocument()
-  })
-
-  it('closes only the logged-out tab and keeps its siblings', async () => {
-    echoOpen()
-    list.mockResolvedValue({ sessionIds: ['d1', 'd2'] })
-    render(<DirectHarness />)
-    act(() => showPlainSshPanel('lambda', 'lambda', { direct: true }))
-    await waitFor(() => expect(open).toHaveBeenCalledTimes(2))
-    await act(async () => {})
-
-    act(() => emit({ kind: 'exit', sessionId: 'd1', exitCode: 0 }))
-    await waitFor(() => expect(screen.getAllByRole('tab')).toHaveLength(1))
-    expect(screen.getByText('Plain SSH · lambda')).toBeInTheDocument()
-    // The clean exit already detached; unmount must not hang up a dead session id.
-    expect(close).not.toHaveBeenCalled()
-  })
-
-  it('shows the host’s file browser on the Files tab', async () => {
-    echoOpen()
-    list.mockResolvedValue({ sessionIds: ['d1'] })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        plainSsh: window.api.plainSsh,
-        directSshFiles: {
-          home: vi.fn(async () => ({ ok: true, path: '/home/me' })),
-          list: vi.fn(async () => ({
-            ok: true,
-            path: '/home/me',
-            entries: [{ name: 'notes.txt', path: '/home/me/notes.txt', kind: 'file' }]
-          })),
-          onEvent: vi.fn(() => () => {})
-        }
-      }
-    })
-    render(<DirectHarness />)
-    act(() => showPlainSshPanel('lambda', 'lambda', { direct: true }))
-
-    const user = userEvent.setup()
-    await user.click(await screen.findByRole('tab', { name: 'Files' }))
-    expect(await screen.findByText('notes.txt')).toBeInTheDocument()
-
-    await user.click(screen.getByRole('tab', { name: 'Terminal 1' }))
-    expect(screen.queryByText('notes.txt')).toBeNull()
-    expect(screen.getByRole('tab', { name: 'Files' })).toBeInTheDocument()
-  })
-
-  it('renames a tab inline and clears back to the default label', async () => {
-    echoOpen()
-    list.mockResolvedValue({ sessionIds: ['d1'] })
-    render(<DirectHarness />)
-    act(() => showPlainSshPanel('lambda', 'lambda', { direct: true }))
-    const tab = await screen.findByRole('tab', { name: 'Terminal 1' })
-    await waitFor(() => expect(open).toHaveBeenCalled())
-
-    const user = userEvent.setup()
-    await user.dblClick(tab)
-    const input = screen.getByLabelText('Rename tab Terminal 1')
-    await user.clear(input)
-    await user.type(input, 'Build box{Enter}')
-    expect(screen.getByRole('tab', { name: 'Build box' })).toBeInTheDocument()
-    expect(screen.queryByRole('tab', { name: 'Terminal 1' })).toBeNull()
-
-    // Renaming must not touch the live shell behind the tab.
-    expect(close).not.toHaveBeenCalled()
-
-    await user.dblClick(screen.getByRole('tab', { name: 'Build box' }))
-    await user.clear(screen.getByLabelText('Rename tab Build box'))
-    await user.keyboard('{Enter}')
-    expect(screen.getByRole('tab', { name: 'Terminal 1' })).toBeInTheDocument()
-  })
-
-  it('keeps the drafted name on Escape and ignores IME composition Enter', async () => {
-    echoOpen()
-    list.mockResolvedValue({ sessionIds: ['d1'] })
-    render(<DirectHarness />)
-    act(() => showPlainSshPanel('lambda', 'lambda', { direct: true }))
-    const tab = await screen.findByRole('tab', { name: 'Terminal 1' })
-    await waitFor(() => expect(open).toHaveBeenCalled())
-
-    const user = userEvent.setup()
-    await user.dblClick(tab)
-    const input = screen.getByLabelText('Rename tab Terminal 1')
-    await user.type(input, 'Draft')
-    await user.keyboard('{Escape}')
-    expect(screen.getByRole('tab', { name: 'Terminal 1' })).toBeInTheDocument()
-
-    await user.dblClick(screen.getByRole('tab', { name: 'Terminal 1' }))
-    const editing = screen.getByLabelText('Rename tab Terminal 1')
-    fireEvent.keyDown(editing, { key: 'Enter', keyCode: 229 })
-    expect(screen.getByLabelText('Rename tab Terminal 1')).toBeInTheDocument()
   })
 })

@@ -87,6 +87,8 @@ export type TerminalActions = {
       viewMode?: Tab['viewMode']
       startupCwd?: string
       forceHostRuntime?: boolean
+      /** Marks the tab as a direct-SSH host terminal; its panes attach through the direct session registry instead of the PTY provider. */
+      directSsh?: { targetId: string }
     }
   ) => TerminalTab
   openNewTerminalTabInActiveWorkspace: (groupId: string) => Promise<void>

@@ -67,7 +67,10 @@ export const terminalTabSchema = z.object({
   launchAgent: z
     .custom<TuiAgent>((v) => isTuiAgent(v))
     .optional()
-    .catch(undefined)
+    .catch(undefined),
+  // Direct-SSH host terminals keep their saved target id so a reload can re-list adoptable
+  // sessions; logical session ids never persist, so a restarted app must reconcile, not blind-attach.
+  directSsh: z.object({ targetId: z.string().min(1) }).optional()
 })
 
 const executionHostIdSchema = z.custom<ExecutionHostId>(

@@ -21,8 +21,6 @@ import { resolveClientHostedBrowserRowStripGroupId } from '../tab-bar/client-hos
 import { useEditorGroupFileDropOwner } from '../editor/use-editor-group-file-drop-owner'
 import { cn } from '@/lib/utils'
 import { UNFOCUSED_SPLIT_GROUP_OPACITY } from './split-group-dim'
-import { usePlainSshPanels, minimizePlainSshPanels } from '@/ssh/plain-ssh-terminal-panels'
-import { PlainSshTabItems } from '../plain-ssh-terminal/PlainSshTabItems'
 
 const EditorPanel = lazy(() => import('../editor/EditorPanel'))
 const EMPTY_GROUPS: readonly TabGroup[] = []
@@ -71,8 +69,6 @@ export default function TabGroupPanel({
 }): React.JSX.Element {
   const rightSidebarOpen = useAppStore((state) => state.rightSidebarOpen)
   const sidebarOpen = useAppStore((state) => state.sidebarOpen)
-  // Minimized panels keep clickable tabs so they can be restored; only the focused group hosts them.
-  const sshStripPanel = usePlainSshPanels().find((panel) => panel.direct)
   const model = useTabGroupWorkspaceModel({ groupId, worktreeId })
   const {
     activeTab,
@@ -143,7 +139,6 @@ export default function TabGroupPanel({
       worktreeId={worktreeId}
       expandedPaneByTabId={model.expandedPaneByTabId}
       onActivate={(tabId) => {
-        minimizePlainSshPanels()
         commands.activateTerminal(tabId)
       }}
       onClose={(terminalId) => {
@@ -245,7 +240,6 @@ export default function TabGroupPanel({
       }}
       tabBarOrder={tabBarOrder}
       hoveredTabInsertion={hoveredTabInsertion}
-      trailingItems={isFocused && sshStripPanel ? <PlainSshTabItems panel={sshStripPanel} /> : null}
     />
   )
 

@@ -26,6 +26,7 @@ import { buildPaneTransportOptions } from './pane-transport-options'
 import { createUnservedSshRowTransport } from './unserved-ssh-pane-connect'
 import { createLegacyRelayBridgeTransport } from '../legacy-relay-bridge-transport'
 import { legacyRelayBridgePtyIdForPane } from '../legacy-relay-bridge-panes'
+import { createDirectSshPtyTransport } from '../direct-ssh-pty-transport'
 
 import type { ConnectPanePtySession } from './connect-pane-pty-session'
 import type { PtyTransport } from '../pty-transport-types'
@@ -50,23 +51,30 @@ export function installPtyInputRecovery(session: ConnectPanePtySession): void {
     recordTerminalTabParkedOnUnresolvedHost(session.deps.worktreeId, session.deps.tabId)
   }
   session.transport =
-    session.terminalOwnerUnresolved || session.connectionOwnerHydrating
-      ? createUnresolvedOwnerPtyTransport(
-          session.terminalOwnerUnresolved
-            ? ambiguousWorkspaceOwnerMessage(useAppStore.getState(), session.deps.worktreeId)
-            : 'Workspace host is still loading. Retry when the project finishes hydrating.'
-        )
-      : session.unservedSshTargetId
-        ? createUnservedSshRowTransport(session, session.unservedSshTargetId)
-        : session.runtimeEnvironmentId
-          ? withLegacyRelayBridge(
-              session,
-              createRemoteRuntimePtyTransport(
-                session.runtimeEnvironmentId,
-                session.transportOptions
+    // Why first: a direct tab's transport identity comes from its own descriptor, not workspace
+    // route resolution, which cannot resolve a host scratch workspace and would read unresolved.
+    session.tab?.directSsh
+      ? createDirectSshPtyTransport({
+          targetId: session.tab.directSsh.targetId,
+          transportOptions: session.transportOptions
+        })
+      : session.terminalOwnerUnresolved || session.connectionOwnerHydrating
+        ? createUnresolvedOwnerPtyTransport(
+            session.terminalOwnerUnresolved
+              ? ambiguousWorkspaceOwnerMessage(useAppStore.getState(), session.deps.worktreeId)
+              : 'Workspace host is still loading. Retry when the project finishes hydrating.'
+          )
+        : session.unservedSshTargetId
+          ? createUnservedSshRowTransport(session, session.unservedSshTargetId)
+          : session.runtimeEnvironmentId
+            ? withLegacyRelayBridge(
+                session,
+                createRemoteRuntimePtyTransport(
+                  session.runtimeEnvironmentId,
+                  session.transportOptions
+                )
               )
-            )
-          : createIpcPtyTransport(session.transportOptions)
+            : createIpcPtyTransport(session.transportOptions)
   session.canSendDesktopQueryReply = (): boolean => {
     const ptyId = session.transport.getPtyId()
     return !ptyId || !isPtyLocked(ptyId)

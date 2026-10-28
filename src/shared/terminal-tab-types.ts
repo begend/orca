@@ -40,6 +40,17 @@ export type TerminalTabRecoveryLedger = {
   tabGeneration: number
 }
 
+/**
+ * Transport descriptor for terminals whose panes talk to the direct-SSH session registry
+ * (`window.api.plainSsh` / `DirectSshTerminalSessions`) instead of the daemon PTY provider.
+ * Only the saved target id lives here — safe to persist for tab identity. Logical session ids
+ * are main-process state that dies with the app, so they stay out of this descriptor and any
+ * persisted layout; the transport reconciles them by listing adoptable sessions at startup.
+ */
+export type DirectSshTransport = {
+  targetId: string
+}
+
 export type TerminalTab = {
   id: string
   ptyId: string | null
@@ -79,6 +90,8 @@ export type TerminalTab = {
   pendingActivationSpawn?: boolean | number
   /** Saved bindings identify restored panes; host retirement must match that identity. Transient until PTY binding. */
   restoredFromSession?: true
+  /** Present only on direct-SSH host terminals; routes pane transport away from the PTY provider. Never put a direct session UUID in `ptyId`. */
+  directSsh?: DirectSshTransport
   /** Never persist in-flight recovery: stale ledgers would refuse valid post-restart recovery. Sanitize like pendingActivationSpawn. */
   recovery?: TerminalTabRecoveryLedger
 }

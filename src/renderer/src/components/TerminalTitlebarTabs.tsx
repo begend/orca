@@ -4,8 +4,6 @@ import type { TerminalTab } from '../../../shared/terminal-tab-types'
 import { useAppStore } from '../store'
 import TabBar from './tab-bar/TabBar'
 import type { TerminalController } from './use-terminal-controller'
-import { minimizePlainSshPanels, usePlainSshPanels } from '@/ssh/plain-ssh-terminal-panels'
-import { PlainSshTabItems } from './plain-ssh-terminal/PlainSshTabItems'
 
 const EMPTY_TERMINAL_TABS: TerminalTab[] = []
 
@@ -22,7 +20,8 @@ export function TerminalTitlebarTabs({
 }: {
   controller: TerminalController
 }): React.JSX.Element | null {
-  const panels = usePlainSshPanels()
+  // The projection hook reads the host during render, before the app shell's conditional
+  // titlebar mounts; track it so the first committed portal has a target instead of null.
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null)
   useLayoutEffect(() => {
     const target = document.getElementById('titlebar-tabs')
@@ -74,40 +73,19 @@ export function TerminalTitlebarTabs({
     worktreeClientHostedBrowserRows,
     worktreeFiles
   } = controller
-  const activePanel = panels.find((panel) => panel.direct && !panel.minimized)
-  // In split layouts the per-group strips own the tabs, but an active direct-SSH surface covers
-  // them; the unified titlebar bar must take over so workspace and SSH tabs stay reachable.
   const resolvedTitlebarTabsTarget = portalTarget ?? titlebarTabsTarget
-  if (!resolvedTitlebarTabsTarget || (effectiveActiveLayout && !activePanel)) {
+  // Split layouts draw per-group strips; the unified titlebar bar would duplicate them.
+  if (!resolvedTitlebarTabsTarget || effectiveActiveLayout) {
     return null
   }
-  // Minimized panels keep their tabs clickable here so they can be restored; none reads active.
-  const stripPanel = panels.find((panel) => panel.direct)
-  const activateWorkspaceTab = (tabId: string): void => {
-    minimizePlainSshPanels()
-    handleActivateTab(tabId)
-  }
-  const plainItems = stripPanel ? <PlainSshTabItems panel={stripPanel} /> : null
   if (!renderedActiveWorktreeId) {
-    if (!stripPanel) {
-      return null
-    }
-    return createPortal(
-      <div
-        className="flex h-full min-w-0 items-stretch overflow-hidden border-r border-border/70"
-        role="tablist"
-      >
-        {plainItems}
-      </div>,
-      resolvedTitlebarTabsTarget
-    )
+    return null
   }
   return createPortal(
     <LiveTerminalTabBar
-      // The SSH surface covers the workspace panes, so no workspace tab may read as active then.
-      activeTabId={activePanel ? null : activeTabId}
+      activeTabId={activeTabId}
       worktreeId={renderedActiveWorktreeId}
-      onActivate={activateWorkspaceTab}
+      onActivate={handleActivateTab}
       onClose={handleCloseTab}
       onCloseOthers={handleCloseOthers}
       onCloseToRight={handleCloseTabsToRight}
@@ -153,7 +131,6 @@ export function TerminalTitlebarTabs({
       onMakePreviewFilePermanent={makePreviewFilePermanent}
       onPinFile={pinFile}
       tabBarOrder={tabBarOrder}
-      trailingItems={plainItems}
     />,
     resolvedTitlebarTabsTarget
   )

@@ -132,7 +132,9 @@ const ROW = {
   agentLaunchPane: 'unwritten',
   pendingActivationSpawn: 'unwritten',
   recovery: 'unwritten',
-  restoredFromSession: 'unwritten'
+  restoredFromSession: 'unwritten',
+  // Direct-SSH descriptors stay host-local: the paired-host layout mirror never re-dials them.
+  directSsh: 'unwritten'
 } as const satisfies Record<keyof TerminalTab, DiskFieldWritten>
 
 const ENTRY_FIELDS = {

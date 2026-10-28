@@ -6,7 +6,6 @@ import RightSidebar from '../components/right-sidebar'
 import { RecoverableRenderErrorBoundary } from '../components/error-boundaries/RecoverableRenderErrorBoundary'
 import { FloatingTerminalToggleButton } from '../components/floating-terminal/FloatingTerminalToggleButton'
 import { TerminalWorkbenchContainer } from '../components/TerminalWorkbenchContainer'
-import { usePlainSshPanels } from '@/ssh/plain-ssh-terminal-panels'
 import type { VirtualizedScrollAnchor } from '../hooks/useVirtualizedScrollAnchor'
 import { TitlebarLeftControls } from './TitlebarLeftControls'
 import { RightSidebarToggle, TitlebarMainStrip } from './TitlebarMainStrip'
@@ -67,7 +66,6 @@ function WorktreeSidebar({
 
 function ActivePage({ layout }: { layout: AppChromeLayout }): React.JSX.Element {
   const { activeView, activeWorktreeId, activePendingCreationId, creationLayoutActive } = layout
-  const directSshActive = usePlainSshPanels().some((panel) => panel.direct && !panel.minimized)
   return (
     <>
       {activeView === 'settings' ? <Settings /> : null}
@@ -84,13 +82,7 @@ function ActivePage({ layout }: { layout: AppChromeLayout }): React.JSX.Element 
           reserveCollapsedSidebarHeaderSpace={layout.leftTitlebarChromeLayout.isFloating}
         />
       ) : null}
-      {/* The SSH surface owns the workbench; Landing would fight it for the empty-workspace slot. */}
-      {activeView === 'terminal' &&
-      !activeWorktreeId &&
-      !creationLayoutActive &&
-      !directSshActive ? (
-        <Landing />
-      ) : null}
+      {activeView === 'terminal' && !activeWorktreeId && !creationLayoutActive ? <Landing /> : null}
     </>
   )
 }
@@ -100,9 +92,6 @@ export function AppWorkspaceShell(props: {
   floatingWorkspace: FloatingWorkspacePanelState
 }): React.JSX.Element {
   const { layout, floatingWorkspace } = props
-  const hasActiveDirectSshPanel = usePlainSshPanels().some(
-    (panel) => panel.direct && !panel.minimized
-  )
   const titlebarLeftControls = <TitlebarLeftControls layout={layout} />
   const titlebarMainStrip = <TitlebarMainStrip layout={layout} />
   // Keep scroll memory above sidebar view remounts to preserve list position.
@@ -171,79 +160,65 @@ export function AppWorkspaceShell(props: {
               layout.activeView !== 'artifacts' ? (
                 <div className="titlebar">{titlebarMainStrip}</div>
               ) : null}
-              <div className="relative flex flex-1 min-w-0 min-h-0 flex-col overflow-hidden">
-                {/* Direct SSH has no workspace group to own the tab strip; give it the same titlebar host. */}
-                {hasActiveDirectSshPanel &&
-                layout.activeView === 'terminal' &&
-                !layout.stackedSidebarOpen ? (
-                  <div className="titlebar shrink-0">{titlebarMainStrip}</div>
-                ) : null}
-                <div className="relative flex flex-1 min-w-0 min-h-0 overflow-hidden">
-                  {/* Match the open sidebar header’s alignment to prevent toggle jitter. */}
-                  {layout.workspaceChromeActive && !layout.rightSidebarOpen && (
-                    <div
-                      className="absolute top-0 z-10 flex items-center h-[36px]"
-                      style={
-                        {
-                          // Why: --window-controls-width keeps the toggle clear of the fixed window-controls overlay (138px on custom chrome, 0px otherwise); no internal spacer — one would cover the pane-actions Ellipsis button with an unclickable div.
-                          right: 'var(--window-controls-width)',
-                          WebkitAppRegion: 'no-drag'
-                        } as React.CSSProperties
-                      }
-                    >
-                      {layout.showRightSidebarControls ? <RightSidebarToggle /> : null}
-                    </div>
-                  )}
-                  <div className="flex flex-1 min-w-0 min-h-0 flex-col">
-                    {layout.shouldMountTerminalWorkbench ? (
-                      <TerminalWorkbenchContainer
-                        isVisible={layout.terminalWorkbenchVisible || hasActiveDirectSshPanel}
-                      >
-                        <div
-                          id="plain-ssh-terminal-surface"
-                          className="pointer-events-none absolute inset-0 z-30"
-                        />
-                        <Suspense fallback={null}>
-                          <RecoverableRenderErrorBoundary
-                            boundaryId="terminal.workbench"
-                            surface="terminal-workbench"
-                            resetKey="terminal"
-                            title={translate(
-                              'auto.App.5a9519aef0',
-                              'The workspace workbench hit an error.'
-                            )}
-                            description={translate(
-                              'auto.App.98d4ea2823',
-                              'Terminal, browser, or editor rendering failed in this workspace. Retry to remount it.'
-                            )}
-                          >
-                            <Terminal />
-                          </RecoverableRenderErrorBoundary>
-                        </Suspense>
-                      </TerminalWorkbenchContainer>
-                    ) : null}
-                    <Suspense fallback={null}>
-                      <RecoverableRenderErrorBoundary
-                        boundaryId={`page.${layout.activeView}`}
-                        surface="page"
-                        resetKey={layout.activeView}
-                        title={translate('auto.App.b7a714db1e', 'This page hit an error.')}
-                        description={translate(
-                          'auto.App.03a14f6b5b',
-                          'Retry the page or navigate to another Orca surface.'
-                        )}
-                      >
-                        <ActivePage layout={layout} />
-                      </RecoverableRenderErrorBoundary>
-                    </Suspense>
+              <div className="relative flex flex-1 min-w-0 min-h-0 overflow-hidden">
+                {/* Match the open sidebar header’s alignment to prevent toggle jitter. */}
+                {layout.workspaceChromeActive && !layout.rightSidebarOpen && (
+                  <div
+                    className="absolute top-0 z-10 flex items-center h-[36px]"
+                    style={
+                      {
+                        // Why: --window-controls-width keeps the toggle clear of the fixed window-controls overlay (138px on custom chrome, 0px otherwise); no internal spacer — one would cover the pane-actions Ellipsis button with an unclickable div.
+                        right: 'var(--window-controls-width)',
+                        WebkitAppRegion: 'no-drag'
+                      } as React.CSSProperties
+                    }
+                  >
+                    {layout.showRightSidebarControls ? <RightSidebarToggle /> : null}
                   </div>
-                  {floatingWorkspace.showToggleButton ? (
-                    <FloatingTerminalToggleButton
-                      open={floatingWorkspace.open}
-                      onToggle={() => floatingWorkspace.setOpenWithFocus((open) => !open)}
-                    />
+                )}
+                <div className="flex flex-1 min-w-0 min-h-0 flex-col">
+                  {layout.shouldMountTerminalWorkbench ? (
+                    <TerminalWorkbenchContainer isVisible={layout.terminalWorkbenchVisible}>
+                      <Suspense fallback={null}>
+                        <RecoverableRenderErrorBoundary
+                          boundaryId="terminal.workbench"
+                          surface="terminal-workbench"
+                          resetKey="terminal"
+                          title={translate(
+                            'auto.App.5a9519aef0',
+                            'The workspace workbench hit an error.'
+                          )}
+                          description={translate(
+                            'auto.App.98d4ea2823',
+                            'Terminal, browser, or editor rendering failed in this workspace. Retry to remount it.'
+                          )}
+                        >
+                          <Terminal />
+                        </RecoverableRenderErrorBoundary>
+                      </Suspense>
+                    </TerminalWorkbenchContainer>
                   ) : null}
+                  <Suspense fallback={null}>
+                    <RecoverableRenderErrorBoundary
+                      boundaryId={`page.${layout.activeView}`}
+                      surface="page"
+                      resetKey={layout.activeView}
+                      title={translate('auto.App.b7a714db1e', 'This page hit an error.')}
+                      description={translate(
+                        'auto.App.03a14f6b5b',
+                        'Retry the page or navigate to another Orca surface.'
+                      )}
+                    >
+                      <ActivePage layout={layout} />
+                    </RecoverableRenderErrorBoundary>
+                  </Suspense>
                 </div>
+                {floatingWorkspace.showToggleButton ? (
+                  <FloatingTerminalToggleButton
+                    open={floatingWorkspace.open}
+                    onToggle={() => floatingWorkspace.setOpenWithFocus((open) => !open)}
+                  />
+                ) : null}
               </div>
             </div>
           </div>

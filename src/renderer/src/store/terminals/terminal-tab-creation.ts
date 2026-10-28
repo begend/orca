@@ -135,6 +135,8 @@ export function createTerminalTabCreationActions(
           ...(createdShellOverride !== undefined ? { shellOverride: createdShellOverride } : {}),
           ...(startupCwd && startupCwd.length > 0 ? { startupCwd } : {}),
           ...(options?.forceHostRuntime ? { forceHostRuntime: true } : {}),
+          // Why: the descriptor must exist before the first pane mount, or the pane would spawn a local shell into this tab.
+          ...(options?.directSsh ? { directSsh: { targetId: options.directSsh.targetId } } : {}),
           ...(options?.launchAgent ? { launchAgent: options.launchAgent } : {}),
           ...(options?.agentLaunchPane ? { agentLaunchPane: options.agentLaunchPane } : {}),
           // Tag click-driven spawn so bind cannot reorder Recent/Smart via activity/sortEpoch.

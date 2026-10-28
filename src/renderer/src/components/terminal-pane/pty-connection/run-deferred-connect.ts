@@ -1,4 +1,5 @@
 import { isRemoteRuntimePtyId } from '../../../../../shared/remote-runtime-pty-id'
+import { isDirectSshPtyId } from '../../../../../shared/direct-ssh-pty-id'
 import { createTerminalZeroDimensionsMessage } from '../../../../../shared/terminal-zero-dimensions-diagnostic'
 import { isWorktreeRemovalFenceError } from '../../../../../shared/worktree/removal-fence-error'
 import { safeFit } from '@/lib/pane-manager/pane-tree-ops'
@@ -184,7 +185,8 @@ export function installRunDeferredConnect(session: ConnectPanePtySession): void 
     bindBuildColdRestoreAgentResumeStartup(session)
     bindDeferredColdRestoreAndSnapshot(session)
     session.canUseMainBufferSnapshot = function (ptyId: string | null): ptyId is string {
-      return Boolean(ptyId) && !isRemoteRuntimePtyId(ptyId)
+      // Direct sessions have no main-side snapshot; their xterm stays mounted instead.
+      return Boolean(ptyId) && !isRemoteRuntimePtyId(ptyId) && !isDirectSshPtyId(ptyId)
     }
 
     session.canUseHiddenOutputSnapshot = function (ptyId: string | null): ptyId is string {
