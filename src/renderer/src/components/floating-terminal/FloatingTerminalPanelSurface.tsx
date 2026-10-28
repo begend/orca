@@ -10,6 +10,7 @@ import { renderFloatingTerminalOrchestrationCard } from './FloatingTerminalOrche
 import { FloatingTerminalOrchestrationDialog } from './FloatingTerminalOrchestrationDialog'
 import { FloatingTerminalResizeHandles } from './FloatingTerminalResizeHandles'
 import { FloatingTerminalWindowControls } from './FloatingTerminalWindowControls'
+import { DirectSshFilesDialog } from '../plain-ssh-terminal/DirectSshFilesDialog'
 import type { useFloatingTerminalPanelController } from './use-floating-terminal-panel-controller'
 
 const NO_ACTIVITY_TERMINAL_PORTALS: [] = []
@@ -71,6 +72,8 @@ export function renderFloatingTerminalPanelSurface({
   orchestrationDialogOpen,
   refreshOrchestrationSetupVisibility
 }: ReturnType<typeof useFloatingTerminalPanelController>): React.JSX.Element {
+  // Host-level SFTP entry for direct-SSH shells living in the floating worktree.
+  const activeDirectSsh = deriveActiveDirectSsh(activeTab, terminalItems)
   return (
     // Stay above notifications but below modals; separate shadow and border shells to keep rounded corners clean.
     <div
@@ -186,6 +189,12 @@ export function renderFloatingTerminalPanelSurface({
                 onToggleMaximized={toggleMaximized}
                 onMinimize={() => onOpenChange(false)}
               />
+              {activeDirectSsh ? (
+                <DirectSshFilesDialog
+                  targetId={activeDirectSsh.targetId}
+                  targetLabel={activeDirectSsh.label}
+                />
+              ) : null}
             </div>
 
             <div
@@ -267,4 +276,18 @@ export function renderFloatingTerminalPanelSurface({
       />
     </div>
   )
+}
+
+/** The active tab's direct-SSH identity, when the panel is showing a host shell. */
+function deriveActiveDirectSsh(
+  activeTab: ReturnType<typeof useFloatingTerminalPanelController>['activeTab'],
+  terminalItems: ReturnType<typeof useFloatingTerminalPanelController>['terminalItems']
+): { targetId: string; label: string } | undefined {
+  if (activeTab?.contentType !== 'terminal') {
+    return undefined
+  }
+  const tab = terminalItems.find((entry) => entry.id === activeTab.entityId)
+  return tab?.directSsh
+    ? { targetId: tab.directSsh.targetId, label: tab.customTitle ?? tab.title }
+    : undefined
 }
