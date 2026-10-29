@@ -1,6 +1,7 @@
 import type { AiVaultSessionTitle } from './ai-vault-session-title'
 import type { AgentType } from './agent-status-types'
 import type { ExecutionHostId } from './execution-host'
+import type { DirectSshTransport } from './terminal-tab-types'
 
 export type TabGroupSplitDirection = 'horizontal' | 'vertical'
 
@@ -69,6 +70,8 @@ export type Tab = {
   agentSessionAgent?: AgentType
   /** Chat overlays retain the mounted terminal; missing/legacy mode uses raw xterm. */
   viewMode?: 'terminal' | 'chat'
+  /** Terminal projection only: preserves direct host identity across independent tab-bar hydration. */
+  directSsh?: DirectSshTransport
   /** Timestamp when the tab was last focused / activated by the user. */
   lastFocusedAt?: number
 }

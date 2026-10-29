@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom'
 import { useLayoutEffect, useState } from 'react'
+import type { Tab } from '../../../shared/tab-types'
 import type { TerminalTab } from '../../../shared/terminal-tab-types'
 import { useAppStore } from '../store'
 import TabBar from './tab-bar/TabBar'
@@ -7,6 +8,7 @@ import { directSshFilesTarget, DirectSshTabActions } from './plain-ssh-terminal/
 import type { TerminalController } from './use-terminal-controller'
 
 const EMPTY_TERMINAL_TABS: TerminalTab[] = []
+const EMPTY_UNIFIED_TABS: Tab[] = []
 
 // Isolate title subscriptions so renames do not rerender the topology-owning Terminal root.
 function LiveTerminalTitlebarChrome(
@@ -15,9 +17,15 @@ function LiveTerminalTitlebarChrome(
   }
 ): React.JSX.Element {
   const tabs = useAppStore((state) => state.tabsByWorktree[props.worktreeId] ?? EMPTY_TERMINAL_TABS)
+  const unifiedTabs = useAppStore(
+    (state) => state.unifiedTabsByWorktree[props.worktreeId] ?? EMPTY_UNIFIED_TABS
+  )
   const activeDirectSsh =
     props.activeTabType === 'terminal'
-      ? directSshFilesTarget(tabs.find((tab) => tab.id === props.activeTabId))
+      ? directSshFilesTarget(
+          tabs.find((tab) => tab.id === props.activeTabId) ??
+            unifiedTabs.find((tab) => tab.entityId === props.activeTabId)
+        )
       : undefined
   return (
     <div className="flex h-full min-w-0 flex-1">

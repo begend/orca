@@ -154,12 +154,15 @@ const ENTRY_FIELDS = {
 
 const TERMINAL_ENTRY = {
   ...ENTRY_FIELDS,
+  directSsh: own('tab.terminal', 'directSsh'),
   executionHostId: own('model', 'hostId'),
   label: own('terminalRow', 'title')
 } as const satisfies Record<keyof Tab, DiskFieldWritten>
 
 const CONTENT_ENTRY = {
   ...ENTRY_FIELDS,
+  // Content tabs cannot carry a direct host target.
+  directSsh: 'unwritten',
   executionHostId: {
     from: 'model.hostId',
     via: ['file.externalSshTargetId', 'file.runtimeEnvironmentId']

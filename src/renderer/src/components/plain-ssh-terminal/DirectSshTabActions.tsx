@@ -5,9 +5,12 @@ export type DirectSshFilesTarget = {
   targetId: string
 }
 
+/** Unified terminal projections retain the same immutable direct target across independent hydration. */
+type DirectSshTabProjection = Pick<TerminalTab, 'directSsh'>
+
 /** Resolve SFTP identity solely from the canonical direct terminal descriptor. */
 export function directSshFilesTarget(
-  terminal: Pick<TerminalTab, 'directSsh' | 'customTitle' | 'title'> | null | undefined
+  terminal: DirectSshTabProjection | null | undefined
 ): DirectSshFilesTarget | undefined {
   return terminal?.directSsh ? { targetId: terminal.directSsh.targetId } : undefined
 }

@@ -145,6 +145,34 @@ describe('TerminalTitlebarTabs', () => {
     expect(target.textContent).toContain('Files build-box')
   })
 
+  it('keeps Files available from a persisted direct unified projection before its terminal row restores', () => {
+    mocks.state = {
+      tabsByWorktree: { [WORKTREE_ID]: [] },
+      unifiedTabsByWorktree: {
+        [WORKTREE_ID]: [
+          {
+            id: 'direct-tab',
+            entityId: 'direct-tab',
+            groupId: 'group-1',
+            worktreeId: WORKTREE_ID,
+            contentType: 'terminal',
+            label: 'Terminal 1',
+            customLabel: 'Renamed shell',
+            color: null,
+            sortOrder: 0,
+            createdAt: 1,
+            directSsh: { targetId: 'build-box' }
+          }
+        ]
+      },
+      getActiveTab: () => null
+    }
+
+    const target = renderTitlebarTabs({ activeTabId: 'direct-tab' })
+
+    expect(target.textContent).toContain('Files build-box')
+  })
+
   it('does not render titlebar Files chrome for split workspaces', () => {
     mocks.state = { tabsByWorktree: {}, unifiedTabsByWorktree: {}, getActiveTab: () => null }
 

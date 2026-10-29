@@ -218,7 +218,8 @@ export function createTerminalTabCreationActions(
           sortOrder: cleanedGroupOrder.length,
           createdAt: tab.createdAt,
           // Why: omit for non-agent tabs so they keep the implicit 'terminal' view mode.
-          ...(options?.viewMode ? { viewMode: options.viewMode } : {})
+          ...(options?.viewMode ? { viewMode: options.viewMode } : {}),
+          ...(tab.directSsh ? { directSsh: tab.directSsh } : {})
         }
         const nextGroupOrder = dedupeTabOrder([...cleanedGroupOrder, unifiedTab.id])
         const nextRecent = shouldActivate

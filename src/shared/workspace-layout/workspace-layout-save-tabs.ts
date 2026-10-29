@@ -100,6 +100,7 @@ export function saveTabBarEntry(
     label,
     ...(tab.generatedTitle !== undefined ? { generatedLabel: tab.generatedTitle } : {}),
     ...pickStoredFields(tab, SHARED_OPTIONAL_FIELDS),
+    ...(tab.kind === 'terminal' ? pickStoredFields(tab.terminal, ['directSsh']) : {}),
     customLabel: tab.customTitle,
     color: tab.color,
     sortOrder: placement.sortOrder,

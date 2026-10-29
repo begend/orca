@@ -111,7 +111,8 @@ const tabSchema = z.object({
   isPreview: z.boolean().optional(),
   isPinned: z.boolean().optional(),
   // Preserve chat mode on restore; unknown future values degrade to terminal and missing legacy values remain absent.
-  viewMode: z.enum(['terminal', 'chat']).catch('terminal').optional()
+  viewMode: z.enum(['terminal', 'chat']).catch('terminal').optional(),
+  directSsh: z.object({ targetId: z.string().min(1) }).optional()
 })
 
 const tabGroupSchema = z.object({

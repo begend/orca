@@ -36,6 +36,7 @@ describe('direct-SSH canonical terminal tabs', () => {
       .getState()
       .unifiedTabsByWorktree[wt]?.find((entry) => entry.entityId === tab.id)
     expect(unified?.contentType).toBe('terminal')
+    expect(unified?.directSsh).toEqual({ targetId: 'host-a' })
     const group = store.getState().groupsByWorktree[wt]?.[0]
     expect(group?.tabOrder).toContain(unified?.id)
     const layout = store.getState().terminalLayoutsByTabId[tab.id]
@@ -81,6 +82,11 @@ describe('direct-SSH canonical terminal tabs', () => {
       ? parsed.data.tabsByWorktree[wt]?.find((entry) => entry.id === tab.id)
       : undefined
     expect(restored?.directSsh).toEqual({ targetId: 'host-b' })
+    expect(
+      parsed?.success
+        ? parsed.data.unifiedTabs?.[wt]?.find((entry) => entry.entityId === tab.id)?.directSsh
+        : undefined
+    ).toEqual({ targetId: 'host-b' })
     expect(restored?.ptyId).toBeNull()
     expect(payload.terminalLayoutsByTabId[tab.id]?.ptyIdsByLeafId).toBeUndefined()
     expect(payload.activeWorktreeIdsOnShutdown).not.toContain(wt)
