@@ -40,7 +40,9 @@ export function projectWorktreeTabModelReconciliation(
     // Reconnect or unverified host-loss evidence keeps legacy tabs live until replacement binds or user closes them.
     return (
       terminalTabHasReconnectablePty(state, tab.id, tab.ptyId) ||
-      state.unverifiedPtyLossTabIds[tab.id] === true
+      state.unverifiedPtyLossTabIds[tab.id] === true ||
+      // Direct target identity proves this is a canonical terminal even while main owns its session.
+      tab.directSsh !== undefined
     )
   })
   const orphanTerminalIds = getOrphanTerminalIds(state, worktreeId)

@@ -1,8 +1,6 @@
 import type { SshConnectionState } from '../../../shared/ssh-types'
 import { timeRendererStartupStep } from './startup-diagnostics'
 import { reconnectSshTargetForRendererStartup } from './ssh-startup-reconnect'
-import { reconcileDirectSshSessionsInStore } from '../ssh/direct-ssh-session-reconciliation'
-import { useAppStore } from '../store'
 
 const SSH_RECONNECT_TIMEOUT_MS = 15_000
 
@@ -115,5 +113,4 @@ export async function restoreSshConnectionsForStartup(args: {
       /* best-effort */
     }
   }
-  await reconcileDirectSshSessionsInStore(useAppStore.getState())
 }

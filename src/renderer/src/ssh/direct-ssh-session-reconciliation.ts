@@ -9,8 +9,7 @@ export type DirectSshAdoptableSession = {
   rows: number
 }
 
-/** Pair detached logical sessions with canonical leaves deterministically. Existing live bindings win;
- * unbound leaves consume same-grid sessions first, then the registry's stable creation order. */
+/** Pair detached logical sessions with their exact canonical leaves. */
 export function reconcileDirectSshLayoutBindings(
   layout: TerminalLayoutSnapshot,
   sessions: readonly DirectSshAdoptableSession[],
@@ -30,15 +29,13 @@ export function reconcileDirectSshLayoutBindings(
     if (ptyIdsByLeafId[leafId]) {
       continue
     }
-    const exactIdentityIndex = remaining.findIndex(
+    const sessionIndex = remaining.findIndex(
       (session) => session.tabId === tabId && session.leafId === leafId
     )
-    const grid = layout.lastGridsByLeafId?.[leafId]
-    const exactGridIndex = grid
-      ? remaining.findIndex((session) => session.cols === grid.cols && session.rows === grid.rows)
-      : -1
-    const index = exactIdentityIndex !== -1 ? exactIdentityIndex : Math.max(exactGridIndex, 0)
-    const [session] = remaining.splice(index, 1)
+    if (sessionIndex === -1) {
+      continue
+    }
+    const [session] = remaining.splice(sessionIndex, 1)
     if (!session) {
       break
     }

@@ -1,6 +1,7 @@
 import { FolderOpen } from 'lucide-react'
 import { useState } from 'react'
 import { translate } from '@/i18n/i18n'
+import { useAppStore } from '@/store'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -19,9 +20,15 @@ export function DirectSshFilesDialog({
   targetLabel
 }: {
   targetId: string
-  targetLabel: string
+  /** Settings provides an immediate label; terminal actions resolve one from canonical target metadata. */
+  targetLabel?: string
 }): React.JSX.Element | null {
   const [open, setOpen] = useState(false)
+  const targetLabelFromStore = useAppStore(
+    (state) =>
+      state.sshTargetLabels.get(targetId) ?? state.removedSshTargetLabels.get(targetId) ?? targetId
+  )
+  const label = targetLabel ?? targetLabelFromStore
   if (!window.api.directSshFiles) {
     return null
   }
@@ -37,7 +44,7 @@ export function DirectSshFilesDialog({
         <DialogHeader>
           <DialogTitle>
             {translate('auto.components.plainSshTerminal.filesTitle', 'Files · {{host}}', {
-              host: targetLabel
+              host: label
             })}
           </DialogTitle>
         </DialogHeader>

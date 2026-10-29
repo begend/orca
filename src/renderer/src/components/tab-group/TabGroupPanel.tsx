@@ -21,7 +21,10 @@ import { resolveClientHostedBrowserRowStripGroupId } from '../tab-bar/client-hos
 import { useEditorGroupFileDropOwner } from '../editor/use-editor-group-file-drop-owner'
 import { cn } from '@/lib/utils'
 import { UNFOCUSED_SPLIT_GROUP_OPACITY } from './split-group-dim'
-import { DirectSshFilesDialog } from '../plain-ssh-terminal/DirectSshFilesDialog'
+import {
+  directSshFilesTarget,
+  DirectSshTabActions
+} from '../plain-ssh-terminal/DirectSshTabActions'
 
 const EditorPanel = lazy(() => import('../editor/EditorPanel'))
 const EMPTY_GROUPS: readonly TabGroup[] = []
@@ -81,15 +84,10 @@ export default function TabGroupPanel({
     terminalTabs
   } = model
   // Host-level SFTP entry for direct-SSH shells: an action next to the tabs, never a pseudo-tab.
-  const activeDirectSsh = (() => {
-    if (activeTab?.contentType !== 'terminal') {
-      return undefined
-    }
-    const tab = terminalTabs.find((entry) => entry.id === activeTab.entityId)
-    return tab?.directSsh
-      ? { targetId: tab.directSsh.targetId, label: tab.customTitle ?? tab.title }
+  const activeDirectSsh =
+    activeTab?.contentType === 'terminal'
+      ? directSshFilesTarget(terminalTabs.find((entry) => entry.id === activeTab.entityId))
       : undefined
-  })()
   // Why: one strip owns the worktree's client-hosted rows, or every split repeats them.
   const ownsClientHostedRows = useAppStore(
     (state) =>
@@ -305,12 +303,7 @@ export default function TabGroupPanel({
               className={actionChromeClassName}
               style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             >
-              {isFocused && activeDirectSsh ? (
-                <DirectSshFilesDialog
-                  targetId={activeDirectSsh.targetId}
-                  targetLabel={activeDirectSsh.label}
-                />
-              ) : null}
+              {isFocused ? <DirectSshTabActions target={activeDirectSsh} /> : null}
               <TabBarQuickCommandsButton
                 worktreeId={worktreeId}
                 groupId={groupId}

@@ -27,6 +27,12 @@ vi.mock('./tab-bar/TabBar', () => ({
     return null
   }
 }))
+vi.mock('./plain-ssh-terminal/DirectSshTabActions', () => ({
+  directSshFilesTarget: (tab: { directSsh?: { targetId: string } } | undefined) =>
+    tab?.directSsh ? { targetId: tab.directSsh.targetId } : undefined,
+  DirectSshTabActions: ({ target }: { target?: { targetId: string } }) =>
+    target ? <button type="button">Files {target.targetId}</button> : null
+}))
 
 const WORKTREE_ID = 'repo-1::/repo/worktree'
 const ROW: ClientHostedBrowserRow = {
@@ -37,14 +43,17 @@ const ROW: ClientHostedBrowserRow = {
 
 let titlebarTarget: HTMLElement
 let container: HTMLElement
+let root: ReturnType<typeof createRoot>
 
-function renderTitlebarTabs(): void {
+function renderTitlebarTabs(
+  options: { activeTabId?: string | null; split?: boolean } = {}
+): HTMLElement {
   const controller = {
     activeBrowserTabId: null,
     activeFileId: null,
-    activeTabId: null,
+    activeTabId: options.activeTabId ?? null,
     activeTabType: 'terminal',
-    effectiveActiveLayout: null,
+    effectiveActiveLayout: options.split ? { type: 'leaf', groupId: 'group-1' } : null,
     expandedPaneByTabId: {},
     handleActivateBrowserTab: vi.fn(),
     handleActivateTab: vi.fn(),
@@ -78,9 +87,9 @@ function renderTitlebarTabs(): void {
     worktreeClientHostedBrowserRows: getClientHostedBrowserRows(WORKTREE_ID),
     worktreeFiles: []
   } as unknown as TerminalController
-  const root = createRoot(container)
+  root = createRoot(container)
   act(() => root.render(<TerminalTitlebarTabs controller={controller} />))
-  act(() => root.unmount())
+  return titlebarTarget
 }
 
 describe('TerminalTitlebarTabs', () => {
@@ -93,6 +102,7 @@ describe('TerminalTitlebarTabs', () => {
   })
 
   afterEach(() => {
+    act(() => root?.unmount())
     applyClientHostedBrowserRows({ worktreeId: WORKTREE_ID, rows: [] })
     titlebarTarget.remove()
     container.remove()
@@ -107,5 +117,40 @@ describe('TerminalTitlebarTabs', () => {
   it('passes no rows when the worktree has none', () => {
     renderTitlebarTabs()
     expect(mocks.tabBarProps.at(-1)?.clientHostedBrowserRows).toEqual([])
+  })
+
+  it('shows Files beside the non-split titlebar tabs for an active direct terminal', () => {
+    mocks.state = {
+      tabsByWorktree: {
+        [WORKTREE_ID]: [
+          {
+            id: 'direct-tab',
+            ptyId: null,
+            worktreeId: WORKTREE_ID,
+            title: 'Terminal 1',
+            customTitle: 'Build box',
+            color: null,
+            sortOrder: 0,
+            createdAt: 1,
+            directSsh: { targetId: 'build-box' }
+          }
+        ]
+      },
+      unifiedTabsByWorktree: {},
+      getActiveTab: () => null
+    }
+
+    const target = renderTitlebarTabs({ activeTabId: 'direct-tab' })
+
+    expect(target.textContent).toContain('Files build-box')
+  })
+
+  it('does not render titlebar Files chrome for split workspaces', () => {
+    mocks.state = { tabsByWorktree: {}, unifiedTabsByWorktree: {}, getActiveTab: () => null }
+
+    const target = renderTitlebarTabs({ split: true })
+
+    expect(target.textContent).not.toContain('Files')
+    expect(mocks.tabBarProps).toEqual([])
   })
 })

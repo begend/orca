@@ -47,7 +47,7 @@ function tab(): TerminalTab {
 }
 
 describe('direct SSH session reconciliation', () => {
-  it('matches detached sessions to leaves by their last grid', () => {
+  it('matches detached sessions to their exact tab and leaf identity', () => {
     const reconciled = reconcileDirectSshLayoutBindings(
       layout,
       [
@@ -61,6 +61,16 @@ describe('direct SSH session reconciliation', () => {
       left: 'direct-ssh:left-session',
       right: 'direct-ssh:right-session'
     })
+  })
+
+  it('does not adopt a legacy session that lacks exact pane identity', () => {
+    const reconciled = reconcileDirectSshLayoutBindings(
+      layout,
+      [{ sessionId: 'legacy-session', cols: 80, rows: 24 }],
+      'tab-1'
+    )
+
+    expect(reconciled).toBe(layout)
   })
 
   it('lists once per target and restores live bindings before panes mount', async () => {

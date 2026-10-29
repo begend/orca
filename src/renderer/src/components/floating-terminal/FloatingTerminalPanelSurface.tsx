@@ -10,7 +10,11 @@ import { renderFloatingTerminalOrchestrationCard } from './FloatingTerminalOrche
 import { FloatingTerminalOrchestrationDialog } from './FloatingTerminalOrchestrationDialog'
 import { FloatingTerminalResizeHandles } from './FloatingTerminalResizeHandles'
 import { FloatingTerminalWindowControls } from './FloatingTerminalWindowControls'
-import { DirectSshFilesDialog } from '../plain-ssh-terminal/DirectSshFilesDialog'
+import {
+  directSshFilesTarget,
+  DirectSshTabActions
+} from '../plain-ssh-terminal/DirectSshTabActions'
+import type { DirectSshFilesTarget } from '../plain-ssh-terminal/DirectSshTabActions'
 import type { useFloatingTerminalPanelController } from './use-floating-terminal-panel-controller'
 
 const NO_ACTIVITY_TERMINAL_PORTALS: [] = []
@@ -189,12 +193,7 @@ export function renderFloatingTerminalPanelSurface({
                 onToggleMaximized={toggleMaximized}
                 onMinimize={() => onOpenChange(false)}
               />
-              {activeDirectSsh ? (
-                <DirectSshFilesDialog
-                  targetId={activeDirectSsh.targetId}
-                  targetLabel={activeDirectSsh.label}
-                />
-              ) : null}
+              <DirectSshTabActions target={activeDirectSsh} />
             </div>
 
             <div
@@ -282,12 +281,10 @@ export function renderFloatingTerminalPanelSurface({
 function deriveActiveDirectSsh(
   activeTab: ReturnType<typeof useFloatingTerminalPanelController>['activeTab'],
   terminalItems: ReturnType<typeof useFloatingTerminalPanelController>['terminalItems']
-): { targetId: string; label: string } | undefined {
+): DirectSshFilesTarget | undefined {
   if (activeTab?.contentType !== 'terminal') {
     return undefined
   }
   const tab = terminalItems.find((entry) => entry.id === activeTab.entityId)
-  return tab?.directSsh
-    ? { targetId: tab.directSsh.targetId, label: tab.customTitle ?? tab.title }
-    : undefined
+  return directSshFilesTarget(tab)
 }

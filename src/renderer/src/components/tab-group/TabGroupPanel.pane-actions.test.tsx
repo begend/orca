@@ -41,10 +41,11 @@ vi.mock('@/lib/pane-manager/client-hosted-browser-row-state', () => ({
 vi.mock('./useTabGroupWorkspaceModel', () => ({
   useTabGroupWorkspaceModel: () => mocks.model
 }))
-vi.mock('../plain-ssh-terminal/DirectSshFilesDialog', () => ({
-  DirectSshFilesDialog: ({ targetId }: { targetId: string }) => (
-    <button type="button">Files {targetId}</button>
-  )
+vi.mock('../plain-ssh-terminal/DirectSshTabActions', () => ({
+  directSshFilesTarget: (tab: { directSsh?: { targetId: string } } | undefined) =>
+    tab?.directSsh ? { targetId: tab.directSsh.targetId } : undefined,
+  DirectSshTabActions: ({ target }: { target?: { targetId: string } }) =>
+    target ? <button type="button">Files {target.targetId}</button> : null
 }))
 
 import { TooltipProvider } from '@/components/ui/tooltip'

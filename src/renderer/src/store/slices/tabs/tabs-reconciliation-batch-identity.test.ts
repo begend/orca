@@ -9,6 +9,42 @@ import { createTestStore } from '../store-test-helpers'
 const WORKTREE = 'repo::/tmp/app'
 
 describe('projectWorktreeTabModelReconciliation identity', () => {
+  it('restores a direct SSH runtime row as a canonical unified tab', () => {
+    const groupId = 'g-1'
+    const store = createTestStore()
+    store.setState({
+      unifiedTabsByWorktree: { [WORKTREE]: [] },
+      groupsByWorktree: {
+        [WORKTREE]: [{ id: groupId, worktreeId: WORKTREE, activeTabId: null, tabOrder: [] }]
+      },
+      activeGroupIdByWorktree: { [WORKTREE]: groupId },
+      layoutByWorktree: { [WORKTREE]: { type: 'leaf', groupId } },
+      tabsByWorktree: {
+        [WORKTREE]: [
+          {
+            id: 'direct-row',
+            ptyId: null,
+            worktreeId: WORKTREE,
+            title: 'Terminal 1',
+            customTitle: 'Build shell',
+            color: null,
+            sortOrder: 0,
+            createdAt: 1,
+            directSsh: { targetId: 'build-box' }
+          }
+        ]
+      },
+      ptyIdsByTabId: { 'direct-row': [] }
+    })
+
+    const { patch } = projectWorktreeTabModelReconciliation(store.getState(), WORKTREE)
+
+    expect(patch.unifiedTabsByWorktree?.[WORKTREE]).toMatchObject([
+      { id: 'direct-row', entityId: 'direct-row', customLabel: 'Build shell' }
+    ])
+    expect(patch.groupsByWorktree?.[WORKTREE]?.[0]?.tabOrder).toEqual(['direct-row'])
+  })
+
   it('keeps every tab-model map when only an orphan runtime terminal changed', () => {
     const groupId = 'g-1'
     const store = createTestStore()

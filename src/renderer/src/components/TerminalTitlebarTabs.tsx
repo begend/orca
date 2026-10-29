@@ -3,16 +3,35 @@ import { useLayoutEffect, useState } from 'react'
 import type { TerminalTab } from '../../../shared/terminal-tab-types'
 import { useAppStore } from '../store'
 import TabBar from './tab-bar/TabBar'
+import { directSshFilesTarget, DirectSshTabActions } from './plain-ssh-terminal/DirectSshTabActions'
 import type { TerminalController } from './use-terminal-controller'
 
 const EMPTY_TERMINAL_TABS: TerminalTab[] = []
 
 // Isolate title subscriptions so renames do not rerender the topology-owning Terminal root.
-function LiveTerminalTabBar(
-  props: Omit<React.ComponentProps<typeof TabBar>, 'tabs'>
+function LiveTerminalTitlebarChrome(
+  props: Omit<React.ComponentProps<typeof TabBar>, 'tabs'> & {
+    activeTabType: TerminalController['activeTabType']
+  }
 ): React.JSX.Element {
   const tabs = useAppStore((state) => state.tabsByWorktree[props.worktreeId] ?? EMPTY_TERMINAL_TABS)
-  return <TabBar {...props} tabs={tabs} />
+  const activeDirectSsh =
+    props.activeTabType === 'terminal'
+      ? directSshFilesTarget(tabs.find((tab) => tab.id === props.activeTabId))
+      : undefined
+  return (
+    <div className="flex h-full min-w-0 flex-1">
+      <div className="min-w-0 flex-1">
+        <TabBar {...props} tabs={tabs} />
+      </div>
+      <div
+        className="flex shrink-0 items-center"
+        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+      >
+        <DirectSshTabActions target={activeDirectSsh} />
+      </div>
+    </div>
+  )
 }
 
 export function TerminalTitlebarTabs({
@@ -82,7 +101,7 @@ export function TerminalTitlebarTabs({
     return null
   }
   return createPortal(
-    <LiveTerminalTabBar
+    <LiveTerminalTitlebarChrome
       activeTabId={activeTabId}
       worktreeId={renderedActiveWorktreeId}
       onActivate={handleActivateTab}
