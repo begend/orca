@@ -43,6 +43,10 @@ export function migrateWorkspaceSessionSshTargetId(
   let changed = false
   for (const tabs of Object.values(session.tabsByWorktree ?? {})) {
     for (const tab of tabs) {
+      if (tab.directSsh?.targetId === oldTargetId) {
+        tab.directSsh = { targetId: newTargetId }
+        changed = true
+      }
       if (!tab.ptyId) {
         continue
       }

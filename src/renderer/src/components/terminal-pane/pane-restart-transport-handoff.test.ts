@@ -63,6 +63,21 @@ describe('releasePaneTransportForRestart', () => {
     expect(window.api.pty.kill).toHaveBeenCalledWith('remote:env-1@@term-1')
   })
 
+  it('destroys direct SSH without detaching away the logical session id first', async () => {
+    const { releasePaneTransportForRestart } = await import('./pane-restart-transport-handoff')
+    const detach = vi.fn()
+    const destroy = vi.fn()
+    const transport = {
+      getPtyId: () => 'direct-ssh:session-1',
+      detach,
+      destroy
+    }
+
+    expect(releasePaneTransportForRestart(transport as never)).toBeNull()
+    expect(detach).not.toHaveBeenCalled()
+    expect(destroy).toHaveBeenCalledOnce()
+  })
+
   it('never sends a replace field on a session reattach', async () => {
     const { createIpcPtyTransport } = await import('./pty-transport')
     vi.mocked(window.api.pty.spawn).mockResolvedValue({ id: 'wt1@@live', isReattach: true })

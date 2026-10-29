@@ -14,7 +14,11 @@ import type { PaneSide } from './terminal-pane-tree'
 import type { SplitRatioIntent } from './split-ratio-intents'
 import type { PaneOutcomeChanges } from './workspace-layout-pane-outcomes'
 import type { LayoutEditorView } from './layout-editor-view'
-import type { LayoutEditorFile, LayoutTerminalCreation } from './workspace-layout-model'
+import type {
+  LayoutDefaultTerminalCreation,
+  LayoutEditorFile,
+  LayoutTerminalCreation
+} from './workspace-layout-model'
 
 type On = { workspace: string }
 
@@ -246,7 +250,7 @@ export type DefaultTerminalTab = {
   leafId: string
   title?: string
   color?: string
-  creation?: Partial<LayoutTerminalCreation>
+  creation?: Partial<LayoutDefaultTerminalCreation>
 }
 
 export type CommandOf<T extends LayoutCommand['type']> = Extract<LayoutCommand, { type: T }>

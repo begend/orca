@@ -47,6 +47,13 @@ function collectSshTargetTerminalTabIds(state: AppState, targetId: string): Set<
     restoredRuntimeHostIdByWorkspaceSessionKey: state.restoredRuntimeHostIdByWorkspaceSessionKey
   })
   const tabIds = new Set<string>()
+  for (const tabs of Object.values(state.tabsByWorktree)) {
+    for (const tab of tabs) {
+      if (tab.directSsh?.targetId === targetId) {
+        tabIds.add(tab.id)
+      }
+    }
+  }
   for (const worktrees of Object.values(selectWorktreesByRepo(state))) {
     for (const worktree of worktrees) {
       if (!targetWorktreeIds.has(worktree.id)) {

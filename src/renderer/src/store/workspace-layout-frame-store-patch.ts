@@ -2,7 +2,8 @@
 
 import { BROWSER_TAB_LAYOUT_FIELDS } from '../../../shared/workspace-layout/workspace-layout-beside'
 import { stableJson } from '../../../shared/workspace-layout/workspace-layout-load-report'
-import type { TerminalTab } from '../../../shared/terminal-tab-types'
+import type { TerminalLayoutSnapshot, TerminalTab } from '../../../shared/terminal-tab-types'
+import { isDirectSshPtyId } from '../../../shared/direct-ssh-pty-id'
 import { isEditorTabContentType } from './slices/editor/tabs/editor-tab-content-type'
 import type { AppState } from './types'
 import type { LayoutFrameSlices } from './workspace-layout-frame-slices'
@@ -64,7 +65,12 @@ function mergeTerminalRow(
   if (same(withoutWindowFields(existing), withoutWindowFields(built))) {
     return existing
   }
-  const merged: TerminalTab = { ...built, ptyId: existing.ptyId }
+  const merged: TerminalTab = {
+    ...built,
+    ptyId: existing.ptyId,
+    // Compatibility: an older owner may omit this new immutable fact; a newer owner remains authoritative.
+    ...(!built.directSsh && existing.directSsh ? { directSsh: existing.directSsh } : {})
+  }
   for (const field of WINDOW_TERMINAL_TAB_FIELDS) {
     if (field === 'ptyId') {
       continue
@@ -79,6 +85,25 @@ function mergeTerminalRow(
 }
 
 /** Each built record, or the store's when equal; the store's array when every record is. */
+function withLiveDirectSshBindings(
+  existing: TerminalLayoutSnapshot | undefined,
+  built: TerminalLayoutSnapshot | undefined
+): TerminalLayoutSnapshot | undefined {
+  if (!existing?.ptyIdsByLeafId || !built) {
+    return built
+  }
+  const directBindings = Object.fromEntries(
+    Object.entries(existing.ptyIdsByLeafId).filter(([, ptyId]) => isDirectSshPtyId(ptyId))
+  )
+  if (Object.keys(directBindings).length === 0) {
+    return built
+  }
+  return {
+    ...built,
+    ptyIdsByLeafId: { ...built.ptyIdsByLeafId, ...directBindings }
+  }
+}
+
 function mergeById<T extends { id: string }>(
   existing: T[] | undefined,
   built: readonly T[] | undefined,
@@ -205,8 +230,11 @@ export function buildLayoutFrameStorePatch(
     ) {
       continue
     }
-    terminalLayouts =
-      setKey(terminalLayouts, tabId, built.terminalLayoutsByTabId[tabId]) ?? terminalLayouts
+    const framed = withLiveDirectSshBindings(
+      state.terminalLayoutsByTabId[tabId],
+      built.terminalLayoutsByTabId[tabId]
+    )
+    terminalLayouts = setKey(terminalLayouts, tabId, framed) ?? terminalLayouts
   }
   Object.assign(patch, terminalLayoutsPatch(state, terminalLayouts))
 

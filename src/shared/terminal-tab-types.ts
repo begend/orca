@@ -45,7 +45,8 @@ export type TerminalTabRecoveryLedger = {
  * (`window.api.plainSsh` / `DirectSshTerminalSessions`) instead of the daemon PTY provider.
  * Only the saved target id lives here — safe to persist for tab identity. Logical session ids
  * are main-process state that dies with the app, so they stay out of this descriptor and any
- * persisted layout; the transport reconciles them by listing adoptable sessions at startup.
+ * persisted layout. Renderer reloads retain the live namespaced leaf binding; an app restart
+ * restores only the target identity and opens a fresh logical session.
  */
 export type DirectSshTransport = {
   targetId: string

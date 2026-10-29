@@ -72,6 +72,7 @@ describe('createTab in a layout-owner build', () => {
       initialLeafId: LEAF,
       startupCwd: '/path/wt/src',
       launchAgent: 'claude',
+      directSsh: { targetId: 'build-box' },
       viewMode: 'chat'
     })
 
@@ -89,7 +90,8 @@ describe('createTab in a layout-owner build', () => {
           defaultTitle: 'Terminal 1',
           shellOverride: 'zsh',
           startupCwd: '/path/wt/src',
-          launchAgent: 'claude'
+          launchAgent: 'claude',
+          directSsh: { targetId: 'build-box' }
         }
       }
     })
@@ -109,7 +111,8 @@ describe('createTab in a layout-owner build', () => {
         root: { type: 'leaf', leafId: LEAF },
         panes: [{ leafId: LEAF, ptyId: 'pty-1' }],
         defaultTitle: 'Terminal 3',
-        startupCwd: '/path/wt'
+        startupCwd: '/path/wt',
+        directSsh: { targetId: 'main-box' }
       }
     }
     provideLayoutFrameTerminalPanes({
@@ -130,6 +133,7 @@ describe('createTab in a layout-owner build', () => {
       title: 'Terminal 3',
       defaultTitle: 'Terminal 3',
       startupCwd: '/path/wt',
+      directSsh: { targetId: 'main-box' },
       ptyId: 'pty-1'
     })
     // Main's copy names no shell: the one the window resolved stays.

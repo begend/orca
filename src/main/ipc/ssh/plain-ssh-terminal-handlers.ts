@@ -102,6 +102,8 @@ export function registerPlainSshTerminalHandlers(): void {
         rows?: unknown
         newSession?: unknown
         sessionId?: unknown
+        tabId?: unknown
+        leafId?: unknown
       }
     ) => {
       const sender = ipcEvent.sender
@@ -125,7 +127,9 @@ export function registerPlainSshTerminalHandlers(): void {
             cols: args?.cols,
             rows: args?.rows,
             newSession: args?.newSession,
-            sessionId: args?.sessionId
+            sessionId: args?.sessionId,
+            tabId: args?.tabId,
+            leafId: args?.leafId
           },
           sink
         )
@@ -145,10 +149,10 @@ export function registerPlainSshTerminalHandlers(): void {
         ? getSshTargetRegistryStore()?.getTarget(args.targetId)
         : undefined
     if (!target || target.owner || !isDirectSshTarget(target)) {
-      return { sessionIds: [] }
+      return { sessions: [] }
     }
     return {
-      sessionIds: getDirectSshTerminalSessions()?.listSessions(target.id, ipcEvent.sender.id) ?? []
+      sessions: getDirectSshTerminalSessions()?.listSessions(target.id, ipcEvent.sender.id) ?? []
     }
   })
   // Dispatch by session ownership: direct ids live in their registry, everything else in the

@@ -480,6 +480,8 @@ describe('layout command effects', () => {
   it('moves a pane to a new tab keeping its id, so its data and scrollback move by structure', () => {
     const { model, tabA, leafA2, ctx } = setup()
     const workspace = model.workspaces[WS]!
+    const source = terminalTab(model, tabA)
+    source.terminal.directSsh = { targetId: 'build-box' }
     const paneData = { ptyId: 'pty-2', incarnationId: 'inc', title: 'logs' }
     const withData: WorkspaceLayoutModel = {
       ...model,
@@ -493,7 +495,10 @@ describe('layout command effects', () => {
       withData
     )
     const newTabId = moved.results[0]!.tabId!
-    expect(terminalTab(moved.model, newTabId).panes.root).toEqual({ type: 'leaf', leafId: leafA2 })
+    expect(terminalTab(moved.model, newTabId)).toMatchObject({
+      terminal: { directSsh: { targetId: 'build-box' } },
+      panes: { root: { type: 'leaf', leafId: leafA2 } }
+    })
     expect(moved.model.workspaces[WS]!.leaves).toEqual(withData.workspaces[WS]!.leaves)
     const loaded = asLoaded(moved.model)
     loaded.facts.scrollback[leafA2] = { buffer: 'scrollback' }

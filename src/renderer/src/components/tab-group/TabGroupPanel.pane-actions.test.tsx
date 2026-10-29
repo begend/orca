@@ -9,9 +9,25 @@ const mocks = vi.hoisted(() => {
     sidebarOpen: true,
     groupsByWorktree: {}
   }
+  const model = {
+    activeTab: { id: 'tab-1', entityId: 'term-1', contentType: 'terminal' },
+    agentSessionItems: [],
+    browserItems: [],
+    commands: { focusGroup: () => undefined, closeGroup: () => undefined },
+    editorItems: [],
+    tabBarOrder: [],
+    terminalTabs: [] as {
+      id: string
+      title: string
+      customTitle: string | null
+      directSsh?: { targetId: string }
+    }[],
+    groupTabs: [],
+    expandedPaneByTabId: {}
+  }
   const useAppStore = (selector: (current: typeof state) => unknown): unknown => selector(state)
   useAppStore.getState = () => state
-  return { useAppStore }
+  return { model, useAppStore }
 })
 vi.mock('@/store', () => ({ useAppStore: mocks.useAppStore }))
 vi.mock('../../store', () => ({ useAppStore: mocks.useAppStore }))
@@ -23,17 +39,12 @@ vi.mock('@/lib/pane-manager/client-hosted-browser-row-state', () => ({
   useClientHostedBrowserRows: () => []
 }))
 vi.mock('./useTabGroupWorkspaceModel', () => ({
-  useTabGroupWorkspaceModel: () => ({
-    activeTab: { id: 'tab-1', entityId: 'term-1', contentType: 'terminal' },
-    agentSessionItems: [],
-    browserItems: [],
-    commands: { focusGroup: () => undefined, closeGroup: () => undefined },
-    editorItems: [],
-    tabBarOrder: [],
-    terminalTabs: [],
-    groupTabs: [],
-    expandedPaneByTabId: {}
-  })
+  useTabGroupWorkspaceModel: () => mocks.model
+}))
+vi.mock('../plain-ssh-terminal/DirectSshFilesDialog', () => ({
+  DirectSshFilesDialog: ({ targetId }: { targetId: string }) => (
+    <button type="button">Files {targetId}</button>
+  )
 }))
 
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -57,9 +68,29 @@ function panel(isFocused: boolean): React.JSX.Element {
   )
 }
 
-afterEach(cleanup)
+afterEach(() => {
+  mocks.model.terminalTabs = []
+  cleanup()
+})
 
 describe('TabGroupPanel Pane Actions menu', () => {
+  it('shows Files for the focused canonical direct SSH tab', () => {
+    mocks.model.terminalTabs = [
+      {
+        id: 'term-1',
+        title: 'Build box',
+        customTitle: null,
+        directSsh: { targetId: 'build-box' }
+      }
+    ]
+
+    const view = render(panel(true))
+
+    expect(view.getByRole('button', { name: 'Files build-box' })).not.toBeNull()
+    view.rerender(panel(false))
+    expect(view.queryByRole('button', { name: 'Files build-box' })).toBeNull()
+  })
+
   it('closes without restoring focus to the old group', async () => {
     const view = render(panel(true))
     const trigger = view.getByRole('button', { name: 'Pane Actions' })

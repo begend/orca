@@ -14,6 +14,13 @@ export function buildActiveConnectionIdsAtShutdown(
       .filter(([targetId, state]) => state.status === 'connected' && !isOwnedSshTargetId(targetId))
       .map(([targetId]) => targetId)
   )
+  // A direct tab has no relay PTY id, but its saved target must reconnect before detached-session adoption.
+  for (const tab of Object.values(snapshot.tabsByWorktree).flat()) {
+    const targetId = tab.directSsh?.targetId
+    if (targetId && snapshot.sshConnectionStates.get(targetId)?.status === 'connected') {
+      targetIds.add(targetId)
+    }
+  }
 
   // Durable PTY IDs retain reconnect targets through transient shutdown transport loss. Exclude explicit disconnect/auth-failed/unobserved targets to honor offline intent and avoid credential loops; focus restore still works. Runtime-owned targets are excluded because renderer connect can dispose their live relay.
   for (const sessionId of Object.values(remoteSessionIdsByTabId ?? {})) {

@@ -44,6 +44,8 @@ export function createDirectSshPtyTransport(options: {
   let pausedUnackedChars = 0
   let recoveryEpoch = 0
   let reconnecting = false
+  let openGeneration = 0
+  let pendingOpenEvents: PlainSshTerminalEvent[] = []
   let unsubscribe: (() => void) | null = null
 
   const api = (): NonNullable<typeof window.api.plainSsh> => {
@@ -74,7 +76,10 @@ export function createDirectSshPtyTransport(options: {
 
   const handleEvent = (event: PlainSshTerminalEvent): void => {
     const raw = rawSessionId()
-    if (destroyed || !raw || event.sessionId !== raw) {
+    if (destroyed || event.sessionId !== raw) {
+      if (!destroyed && !raw) {
+        pendingOpenEvents.push(event)
+      }
       return
     }
     if (event.kind === 'data') {
@@ -110,6 +115,7 @@ export function createDirectSshPtyTransport(options: {
     sessionId = null
     reconnecting = false
     pausedUnackedChars = 0
+    pendingOpenEvents = []
     storedCallbacks = {}
     // `closeSession` separates explicit user close from remount/parking/reload: a detached
     // session stays alive in main so this window (or a reopened one) can adopt it again.
@@ -134,19 +140,30 @@ export function createDirectSshPtyTransport(options: {
     // Store before any await so callbacks are live the moment onEvent subscribes.
     storedCallbacks = connectOptions.callbacks
     const bridge = api()
+    const generation = ++openGeneration
+    unsubscribe ??= bridge.onEvent(handleEvent)
     const result = await bridge.open({
       targetId,
       cols: connectOptions.cols && connectOptions.cols > 0 ? connectOptions.cols : 80,
       rows: connectOptions.rows && connectOptions.rows > 0 ? connectOptions.rows : 24,
+      ...(transportOptions.tabId ? { tabId: transportOptions.tabId } : {}),
+      ...(transportOptions.leafId ? { leafId: transportOptions.leafId } : {}),
       ...request
     })
     if (!result.ok) {
+      pendingOpenEvents = []
+      unsubscribe?.()
+      unsubscribe = null
       // `cancelled` names a dead logical session: the reattach flow clears the stale binding and
       // starts a fresh shell. Other reasons (not-connected, already-open) surface as errors
       // without respawning, so a dropped host cannot churn replacement shells in a loop.
       throw new Error(directOpenFailureMessage(result.reason))
     }
-    if (connectOptions.shouldContinue && !connectOptions.shouldContinue()) {
+    if (
+      destroyed ||
+      generation !== openGeneration ||
+      (connectOptions.shouldContinue && !connectOptions.shouldContinue())
+    ) {
       bridge.close({ sessionId: result.sessionId })
       throw new Error('Direct SSH pane was replaced before it connected.')
     }
@@ -155,7 +172,10 @@ export function createDirectSshPtyTransport(options: {
     reconnecting = false
     pausedUnackedChars = 0
     recoveryEpoch += 1
-    unsubscribe = bridge.onEvent(handleEvent)
+    const queuedEvents = pendingOpenEvents.splice(0)
+    for (const event of queuedEvents) {
+      handleEvent(event)
+    }
     storedCallbacks.onConnect?.()
     transportOptions.onPtySpawn?.(sessionId)
     return { id: sessionId, isReattach: 'sessionId' in request }
@@ -199,16 +219,19 @@ export function createDirectSshPtyTransport(options: {
 
     disconnect() {
       // Explicit close only: a teardown that means "remount/adopt later" goes through detach.
+      openGeneration += 1
       teardown(true)
     },
 
     detach() {
+      openGeneration += 1
       teardown(false)
     },
 
     destroy() {
-      destroyed = true
+      openGeneration += 1
       teardown(true)
+      destroyed = true
     },
 
     sendInput(data: string, _inputKind: TerminalInputKind): boolean {

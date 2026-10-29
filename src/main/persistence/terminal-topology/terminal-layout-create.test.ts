@@ -59,7 +59,11 @@ const create: CommandOf<'createTerminalTab'> = {
   tabId: NEW_TAB,
   leafId: NEW_LEAF,
   groupId: GROUP,
-  creation: { defaultTitle: 'Terminal 2', startupCwd: '/fixture/local/src' }
+  creation: {
+    defaultTitle: 'Terminal 2',
+    startupCwd: '/fixture/local/src',
+    directSsh: { targetId: 'build-box' }
+  }
 }
 
 describe('Store.applyLayoutCommand: a window’s terminal tab create', () => {
@@ -78,7 +82,11 @@ describe('Store.applyLayoutCommand: a window’s terminal tab create', () => {
       leafId: NEW_LEAF
     })
     const row = session.tabsByWorktree[WORKTREE]?.find((tab) => tab.id === NEW_TAB)
-    expect(row).toMatchObject({ defaultTitle: 'Terminal 2', startupCwd: '/fixture/local/src' })
+    expect(row).toMatchObject({
+      defaultTitle: 'Terminal 2',
+      startupCwd: '/fixture/local/src',
+      directSsh: { targetId: 'build-box' }
+    })
     expect(session.tabGroups?.[WORKTREE]?.[0]).toMatchObject({
       id: GROUP,
       tabOrder: [TAB, NEW_TAB]

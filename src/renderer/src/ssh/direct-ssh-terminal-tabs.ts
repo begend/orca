@@ -30,6 +30,12 @@ export function openDirectSshTerminal(targetId: string, hostLabel: string): void
     tabId = tab.id
     state.setTabCustomTitle(tabId, hostLabel)
   }
+  if (
+    existingWorktreeId !== FLOATING_TERMINAL_WORKTREE_ID &&
+    existingWorktreeId !== state.activeWorktreeId
+  ) {
+    state.setActiveWorktree(existingWorktreeId)
+  }
   if (existingWorktreeId === FLOATING_TERMINAL_WORKTREE_ID) {
     // The floating panel mounts when it owns tabs even if the toggle is off; opening it makes
     // the new shell visible immediately.

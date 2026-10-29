@@ -22,8 +22,11 @@ const TerminalCreation = z.object({
   forceHostRuntime: z.literal(true).optional(),
   launchAgent: z
     .custom<TuiAgent>((value) => typeof value === 'string' && isTuiAgent(value))
-    .optional()
+    .optional(),
+  directSsh: z.object({ targetId: z.string().min(1) }).optional()
 })
+
+const DefaultTerminalCreation = TerminalCreation.omit({ directSsh: true })
 
 /** Preserve window-created tab/pane IDs for immediate callers; refuse collisions and replay creates idempotently. */
 export const CreateTerminalTabCommand = z.object({
@@ -51,7 +54,7 @@ export const ApplyDefaultTabsCommand = z.object({
       leafId: z.string().refine(isTerminalLeafId),
       title: z.string().trim().min(1).optional(),
       color: z.string().min(1).optional(),
-      creation: TerminalCreation.optional()
+      creation: DefaultTerminalCreation.optional()
     })
   )
 })

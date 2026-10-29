@@ -5,7 +5,20 @@ import type { PlainSshTerminalEvent } from '../../../shared/plain-ssh-terminal'
 
 export type PlainSshTerminalSink = (event: PlainSshTerminalEvent) => boolean
 
-export type TerminalSession = {
+/** The canonical pane a session belongs to, so a renderer reload reattaches the same pane. */
+export type PaneIdentity = { tabId?: string; leafId?: string }
+
+/** Keep only non-empty string ids from the untyped IPC request. */
+export function paneIdentityOf(source: { tabId?: unknown; leafId?: unknown }): PaneIdentity {
+  return {
+    ...(typeof source.tabId === 'string' && source.tabId.length > 0 ? { tabId: source.tabId } : {}),
+    ...(typeof source.leafId === 'string' && source.leafId.length > 0
+      ? { leafId: source.leafId }
+      : {})
+  }
+}
+
+export type TerminalSession = PaneIdentity & {
   id: string
   targetId: string
   owner: number | null

@@ -118,6 +118,8 @@ function desktopTab(
       ? {
           terminal: {
             ...tab.terminal,
+            // A direct target id is host-local and must never make the desktop dial its own same-id host.
+            directSsh: undefined,
             panes: tab.terminal.panes.map((pane) =>
               desktopPane(pane, tab.entityId, environmentId, handleOf)
             )

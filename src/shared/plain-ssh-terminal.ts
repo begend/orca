@@ -19,6 +19,9 @@ export type PlainSshTerminalOpenRequest = {
   newSession?: boolean
   /** Direct hosts only: attach this existing session (a detached one listed after a reload). */
   sessionId?: string
+  /** Stable canonical pane identity for exact renderer-reload adoption. */
+  tabId?: string
+  leafId?: string
 }
 
 export type PlainSshTerminalOpenResult =
@@ -29,7 +32,15 @@ export type PlainSshTerminalOpenResult =
   | { ok: false; reason: 'cancelled' }
   | { ok: false; reason: 'ssh-missing' | 'spawn-failed'; message: string }
 
-export type PlainSshTerminalListResult = { sessionIds: string[] }
+export type PlainSshTerminalListedSession = {
+  sessionId: string
+  tabId?: string
+  leafId?: string
+  cols: number
+  rows: number
+}
+
+export type PlainSshTerminalListResult = { sessions: PlainSshTerminalListedSession[] }
 
 export type PlainSshTerminalEvent =
   | { kind: 'data'; sessionId: string; data: string }

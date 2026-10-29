@@ -50,7 +50,12 @@ beforeEach(() => {
 function makeTransport() {
   return createDirectSshPtyTransport({
     targetId: 'host-a',
-    transportOptions: { onPtyExit: vi.fn(), onPtySpawn: vi.fn() }
+    transportOptions: {
+      tabId: 'tab-1',
+      leafId: 'leaf-1',
+      onPtyExit: vi.fn(),
+      onPtySpawn: vi.fn()
+    }
   })
 }
 
@@ -67,7 +72,14 @@ describe('direct SSH pty transport', () => {
       rows: 30,
       callbacks: { onConnect }
     })
-    expect(open).toHaveBeenCalledWith({ targetId: 'host-a', cols: 100, rows: 30, newSession: true })
+    expect(open).toHaveBeenCalledWith({
+      targetId: 'host-a',
+      tabId: 'tab-1',
+      leafId: 'leaf-1',
+      cols: 100,
+      rows: 30,
+      newSession: true
+    })
     expect(result).toEqual({ id: toDirectSshPtyId('s1'), isReattach: false })
     expect(transport.getPtyId()).toBe(toDirectSshPtyId('s1'))
     expect(transport.isConnected()).toBe(true)
@@ -84,8 +96,55 @@ describe('direct SSH pty transport', () => {
       rows: 24,
       callbacks: noopCallbacks()
     })
-    expect(open).toHaveBeenCalledWith({ targetId: 'host-a', cols: 80, rows: 24, sessionId: 's2' })
+    expect(open).toHaveBeenCalledWith({
+      targetId: 'host-a',
+      tabId: 'tab-1',
+      leafId: 'leaf-1',
+      cols: 80,
+      rows: 24,
+      sessionId: 's2'
+    })
     expect(result).toEqual({ id: toDirectSshPtyId('s2'), isReattach: true })
+  })
+
+  it('queues prompt output emitted before open resolves', async () => {
+    const pending = Promise.withResolvers<PlainSshTerminalOpenResult>()
+    open.mockReturnValue(pending.promise)
+    const onData = vi.fn()
+    const transport = makeTransport()
+    const connecting = transport.connect({ url: '', callbacks: { onData } })
+
+    emit({ kind: 'data', sessionId: 's-prompt', data: '$ ' })
+    pending.resolve({ ok: true, sessionId: 's-prompt', label: 'host-a' })
+    await connecting
+
+    expect(onData).toHaveBeenCalledWith('$ ')
+    expect(ack).toHaveBeenCalledWith({ sessionId: 's-prompt', chars: 2 })
+  })
+
+  it('removes its event listener after a failed open', async () => {
+    open.mockResolvedValue({ ok: false, reason: 'not-connected' })
+    const transport = makeTransport()
+
+    await expect(transport.connect({ url: '', callbacks: noopCallbacks() })).rejects.toThrow(
+      'not connected'
+    )
+
+    expect(subscribers).toHaveLength(0)
+  })
+
+  it('closes a session whose open resolves after transport destruction', async () => {
+    const pending = Promise.withResolvers<PlainSshTerminalOpenResult>()
+    open.mockReturnValue(pending.promise)
+    const transport = makeTransport()
+    const connecting = transport.connect({ url: '', callbacks: noopCallbacks() })
+
+    transport.destroy!()
+    pending.resolve({ ok: true, sessionId: 's-late', label: 'host-a' })
+
+    await expect(connecting).rejects.toThrow('replaced before it connected')
+    expect(close).toHaveBeenCalledWith({ sessionId: 's-late' })
+    expect(transport.getPtyId()).toBeNull()
   })
 
   it('delivers data, acks rendered chars, and surfaces remote exit', async () => {
@@ -146,6 +205,18 @@ describe('direct SSH pty transport', () => {
     })
     transport.disconnect!()
     expect(close).toHaveBeenCalledWith({ sessionId: 's5' })
+  })
+
+  it('ends the logical session when the pane transport is destroyed', async () => {
+    open.mockResolvedValue({ ok: true, sessionId: 's6', label: 'host-a' })
+    const transport = makeTransport()
+    await transport.connect({ url: '', callbacks: noopCallbacks() })
+
+    transport.destroy!()
+
+    expect(close).toHaveBeenCalledWith({ sessionId: 's6' })
+    expect(transport.getPtyId()).toBeNull()
+    expect(transport.getRecoveryState!().phase).toBe('disposed')
   })
 
   it('suspends acking while output is paused so main backpressure engages', async () => {

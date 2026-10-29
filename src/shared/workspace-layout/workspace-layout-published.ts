@@ -51,7 +51,7 @@ export type PublishedTerminal = {
   defaultTitle?: string
 } & Pick<
   LayoutTerminalCreation,
-  'shellOverride' | 'forceHostRuntime' | 'startupCwd' | 'launchAgent'
+  'shellOverride' | 'forceHostRuntime' | 'startupCwd' | 'launchAgent' | 'directSsh'
 >
 
 export type PublishedTab = {
@@ -172,7 +172,8 @@ function publishTab(
         'shellOverride',
         'forceHostRuntime',
         'startupCwd',
-        'launchAgent'
+        'launchAgent',
+        'directSsh'
       ])
     }
   }

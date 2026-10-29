@@ -52,7 +52,13 @@ function serverLayout(): PublishedWorkspaceLayout {
       { id: 'g-1', tabIds: ['tab-1', 'entry-2', '/srv/app/a.ts', 'ed-2', 'br-1', 'chat-1'] }
     ],
     tabs: [
-      terminal('tab-1', 'tab-1', [['leaf-1', 'pty-1'], ['leaf-2']]),
+      {
+        ...terminal('tab-1', 'tab-1', [['leaf-1', 'pty-1'], ['leaf-2']]),
+        terminal: {
+          ...terminal('tab-1', 'tab-1', [['leaf-1', 'pty-1'], ['leaf-2']]).terminal!,
+          directSsh: { targetId: 'servers-own-target' }
+        }
+      },
       terminal('entry-2', 'term-2', [['leaf-3', 'pty-3']]),
       tab({ id: '/srv/app/a.ts', kind: 'editor' }),
       tab({ id: 'ed-2', entityId: OWNED, kind: 'editor' }),
@@ -99,6 +105,7 @@ describe('a server layout under desktop ids', () => {
     expect(new Set(desktop.tabs.map((entry) => entry.executionHostId))).toEqual(
       new Set(['runtime:env-1'])
     )
+    expect(desktop.tabs[0]?.terminal?.directSsh).toBeUndefined()
     expect(desktop.editorFiles).toEqual([
       {
         filePath: '/srv/app/a.ts',

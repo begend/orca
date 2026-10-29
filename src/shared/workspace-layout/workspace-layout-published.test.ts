@@ -62,6 +62,20 @@ describe('publishWorkspaceLayout: the explicit published projection', () => {
     }
   })
 
+  it('publishes a direct SSH target as terminal creation identity', () => {
+    const { layout } = published()
+    const git = layout.workspaces[GIT_KEY]!
+    const terminal = git.tabs.find((tab) => tab.kind === 'terminal')
+    if (!terminal || terminal.kind !== 'terminal') {
+      throw new Error('terminal fixture missing')
+    }
+    terminal.terminal.directSsh = { targetId: 'build-box' }
+
+    const tab = publishWorkspaceLayout(git, 'local').tabs.find((entry) => entry.id === terminal.id)
+
+    expect(tab?.terminal?.directSsh).toEqual({ targetId: 'build-box' })
+  })
+
   it('names the host that runs each tab: an editor tab its file owner, else the partition', () => {
     const { layout } = published()
     const git = layout.workspaces[GIT_KEY]!

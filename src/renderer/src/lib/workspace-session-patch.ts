@@ -3,13 +3,13 @@ import type {
   WorkspaceSessionState
 } from '../../../shared/workspace-session-state-types'
 import { pruneLocalTerminalScrollbackBuffers } from '../../../shared/workspace-session-terminal-buffers'
+import { withoutPersistedDirectSshLayoutBindingsByTab } from '../../../shared/direct-ssh-session-persistence'
 import { normalizeBrowserHistoryEntries } from '../../../shared/workspace-session-browser-history'
 import { normalizeWorkspaceDocHistoryEntries } from '../../../shared/workspace-doc-history'
 import {
   buildActiveConnectionIdsAtShutdown,
   buildEditorSessionData,
   buildSanitizedTabsByWorktree,
-  buildTerminalSessionData,
   type WorkspaceSessionSnapshot
 } from './workspace-session'
 import {
@@ -20,6 +20,7 @@ import { withoutStagedBrowserTabs } from './workspace-session-staged-browser-tab
 import { buildPersistedUnifiedTabSessionData } from './workspace-session-unified-tabs'
 import { buildLastVisitedAtByWorktreeId } from './workspace-session-focus-recency'
 import { buildSleepingAgentSessionData } from './workspace-session-sleeping-agents'
+import { buildTerminalSessionData } from './workspace-session-terminals'
 
 type SessionRelevantField = keyof WorkspaceSessionSnapshot
 
@@ -45,7 +46,10 @@ function buildPrunedTerminalScrollback(
     snapshot.repos
   )
   return {
-    terminalLayoutsByTabId: pruned.terminalLayoutsByTabId,
+    terminalLayoutsByTabId: withoutPersistedDirectSshLayoutBindingsByTab(
+      pruned.terminalLayoutsByTabId,
+      snapshot.tabsByWorktree
+    ),
     // Why `{}` and not undefined: a patch assigns the key, so an emptied map must be written as empty.
     localOnlyScrollbackByTabId: pruned.localOnlyScrollbackByTabId ?? {}
   }

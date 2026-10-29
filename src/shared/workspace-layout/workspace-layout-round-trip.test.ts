@@ -68,6 +68,25 @@ describe('workspace layout Loader and Serializer', () => {
     }
   )
 
+  it('persists direct target identity but not its process-local logical session id', () => {
+    const stored = localDesktopSession()
+    const workspaceId = 'repo-1::/Users/dev/orca'
+    const row = stored.tabsByWorktree[workspaceId]!.find((tab) => tab.id === 'tab-shell')!
+    const layout = stored.terminalLayoutsByTabId['tab-shell']!
+    const leafId = layout.activeLeafId!
+    row.directSsh = { targetId: 'build-box' }
+    row.ptyId = 'direct-ssh:session-1'
+    layout.ptyIdsByLeafId = { ...layout.ptyIdsByLeafId, [leafId]: 'direct-ssh:session-1' }
+
+    const { saved } = roundTrip(LOCAL_EXECUTION_HOST_ID, stored)
+
+    expect(saved.tabsByWorktree[workspaceId]?.find((tab) => tab.id === 'tab-shell')).toMatchObject({
+      directSsh: { targetId: 'build-box' },
+      ptyId: null
+    })
+    expect(saved.terminalLayoutsByTabId['tab-shell']?.ptyIdsByLeafId?.[leafId]).toBeUndefined()
+  })
+
   it('keeps one record per tab and per-view state out of the model', () => {
     const { loaded } = roundTrip(LOCAL_EXECUTION_HOST_ID, localDesktopSession())
     const layoutJson = JSON.stringify(loaded.layout)

@@ -36,8 +36,11 @@ type LayoutTabFields = {
 
 export type LayoutTerminalCreation = Pick<
   TerminalTab,
-  'defaultTitle' | 'shellOverride' | 'forceHostRuntime' | 'startupCwd' | 'launchAgent'
+  'defaultTitle' | 'shellOverride' | 'forceHostRuntime' | 'startupCwd' | 'launchAgent' | 'directSsh'
 >
+
+/** Defaults choose a shell, not a saved host identity. Direct SSH is created only by an explicit host action. */
+export type LayoutDefaultTerminalCreation = Omit<LayoutTerminalCreation, 'directSsh'>
 
 export type LayoutTerminalTab = LayoutTabFields & {
   kind: 'terminal'

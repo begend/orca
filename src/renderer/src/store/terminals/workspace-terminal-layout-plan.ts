@@ -1,4 +1,5 @@
 import type { TerminalLayoutSnapshot, TerminalTab } from '../../../../shared/terminal-tab-types'
+import { withoutPersistedDirectSshLayoutBindings } from '../../../../shared/direct-ssh-session-persistence'
 import type { WorkspaceSessionState } from '../../../../shared/workspace-session-state-types'
 import { releaseTerminalLayoutPtyIds } from '../slices/terminal-session-row-hydration'
 import {
@@ -44,7 +45,12 @@ export function buildWorkspaceTerminalLayoutPlan({
           )
         }
         const tab = tabById.get(tabId)
-        const sanitized = tab ? sanitizeTerminalLayoutPaneTitles(normalized, tab) : normalized
+        const withoutStaleDirectSession = tab
+          ? withoutPersistedDirectSshLayoutBindings(normalized, tab.directSsh)
+          : normalized
+        const sanitized = tab
+          ? sanitizeTerminalLayoutPaneTitles(withoutStaleDirectSession, tab)
+          : withoutStaleDirectSession
         const activeLeafId = sanitized.root
           ? resolvePtyBoundActiveLeafId({
               root: sanitized.root,

@@ -3,6 +3,7 @@ import {
   getRuntimeEnvironmentRevision
 } from '@/runtime/runtime-environment-revision'
 import type { AppState } from '../types'
+import { parseDirectSshPtyId } from '../../../../shared/direct-ssh-pty-id'
 import { callRuntimeRpc, ensureRuntimeEnvironmentCompatible } from '@/runtime/runtime-rpc-client'
 import {
   resolveTerminalPtyOwner,
@@ -37,7 +38,14 @@ export function startTerminalTabProviderRetirement({
       : resolveTerminalWorktreeRoute(state, worktreeId)
   const retirementTasks: Promise<unknown>[] = localPtyTeardownOwnedExternally
     ? []
-    : retirementPlan.localOrSshPtyIds.map(async (ptyId) => window.api.pty.kill(ptyId))
+    : retirementPlan.localOrSshPtyIds.map(async (ptyId) => {
+        const directSessionId = parseDirectSshPtyId(ptyId)
+        if (directSessionId) {
+          window.api.plainSsh?.close({ sessionId: directSessionId })
+          return
+        }
+        await window.api.pty.kill(ptyId)
+      })
   const localOrSshTaskCount = retirementTasks.length
   let unroutableRuntimeTerminalCount = 0
   if (!remoteCloseOwnedByHost) {

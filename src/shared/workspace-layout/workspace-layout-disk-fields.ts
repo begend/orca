@@ -133,8 +133,8 @@ const ROW = {
   pendingActivationSpawn: 'unwritten',
   recovery: 'unwritten',
   restoredFromSession: 'unwritten',
-  // Direct-SSH descriptors stay host-local: the paired-host layout mirror never re-dials them.
-  directSsh: 'unwritten'
+  // Persist only the saved target identity. Logical direct-session IDs remain transient pane bindings.
+  directSsh: own('tab.terminal', 'directSsh')
 } as const satisfies Record<keyof TerminalTab, DiskFieldWritten>
 
 const ENTRY_FIELDS = {

@@ -230,6 +230,23 @@ describe("a new tab's first terminal, started by main in a layout-owner build", 
     expect(terminalCreateCalls()).toEqual([])
   })
 
+  it('leaves a direct SSH tab to its dedicated pane transport', async () => {
+    const store = storeWithWorktree()
+
+    store.getState().createTab(WORKTREE, undefined, undefined, {
+      id: TAB,
+      initialLeafId: LEAF,
+      directSsh: { targetId: 'build-box' }
+    })
+    await settle()
+
+    expect(store.getState().terminalPaneStartsByPaneKey).toEqual({})
+    expect(terminalCreateCalls()).toEqual([])
+    expect(mocks.callRuntimeRpc.mock.calls[0]?.[2]).toMatchObject({
+      command: { creation: { directSsh: { targetId: 'build-box' } } }
+    })
+  })
+
   it('sends nothing to start with the build switch off', async () => {
     mocks.layoutOwnerIsMain = false
     const store = storeWithWorktree()

@@ -9,7 +9,7 @@ import {
 
 export type PlainSshTerminalApi = {
   open: (args: PlainSshTerminalOpenRequest) => Promise<PlainSshTerminalOpenResult>
-  /** Direct hosts only: session ids the calling window may attach (its own or detached ones). */
+  /** Direct hosts only: sessions the calling window may attach (its own or detached ones). */
   list: (args: { targetId: string }) => Promise<PlainSshTerminalListResult>
   write: (args: { sessionId: string; data: string }) => void
   resize: (args: { sessionId: string; cols: number; rows: number }) => void

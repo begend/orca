@@ -594,14 +594,59 @@ describe('layout.apply', () => {
 
     expect(
       apply?.params?.parse({
-        command: { ...create, creation: { launchAgent: 'claude', startupCwd: '/work' }, index: 0 }
+        command: {
+          ...create,
+          creation: {
+            launchAgent: 'claude',
+            startupCwd: '/work',
+            directSsh: { targetId: 'build-box' }
+          },
+          index: 0
+        }
       })
-    ).toEqual({ command: { ...create, creation: { launchAgent: 'claude', startupCwd: '/work' } } })
+    ).toEqual({
+      command: {
+        ...create,
+        creation: {
+          launchAgent: 'claude',
+          startupCwd: '/work',
+          directSsh: { targetId: 'build-box' }
+        }
+      }
+    })
     expect(accepts({ ...create, initial: 'activation' })).toBe(true)
     expect(accepts({ ...create, initial: 'restore' })).toBe(false)
     expect(accepts({ ...create, tabId: 'web:surface' })).toBe(false)
     expect(accepts({ ...create, leafId: 'leaf-2' })).toBe(false)
     expect(accepts({ ...create, creation: { launchAgent: 'not-an-agent' } })).toBe(false)
+    expect(accepts({ ...create, creation: { directSsh: { targetId: '' } } })).toBe(false)
+    expect(
+      apply?.params?.parse({
+        command: {
+          type: 'applyDefaultTabs',
+          workspace: WORKTREE,
+          tabs: [
+            {
+              tabId: 'tab-default',
+              leafId: '33333333-3333-4333-8333-333333333333',
+              creation: { directSsh: { targetId: 'build-box' } }
+            }
+          ]
+        }
+      })
+    ).toEqual({
+      command: {
+        type: 'applyDefaultTabs',
+        workspace: WORKTREE,
+        tabs: [
+          {
+            tabId: 'tab-default',
+            leafId: '33333333-3333-4333-8333-333333333333',
+            creation: {}
+          }
+        ]
+      }
+    })
   })
 
   it('creates a new tab in the workspace’s own partition', async () => {

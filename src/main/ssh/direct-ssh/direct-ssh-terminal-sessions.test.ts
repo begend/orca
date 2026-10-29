@@ -227,16 +227,33 @@ describe('DirectSshTerminalSessions', () => {
 
   it('lists adoptable sessions and reattaches a specific one after a reload', async () => {
     const { sessions } = harness()
-    const first = await sessions.open('t1', 1, SIZES, () => true)
+    const first = await sessions.open(
+      't1',
+      1,
+      { ...SIZES, tabId: 'tab-1', leafId: 'leaf-1' },
+      () => true
+    )
     const second = await sessions.open('t1', 1, { ...SIZES, newSession: true }, () => true)
     if (!first.ok || !second.ok) {
       throw new Error('open failed')
     }
-    expect(sessions.listSessions('t1', 1)).toEqual([first.sessionId, second.sessionId])
+    expect(sessions.listSessions('t1', 1)).toEqual([
+      {
+        sessionId: first.sessionId,
+        tabId: 'tab-1',
+        leafId: 'leaf-1',
+        cols: 80,
+        rows: 24
+      },
+      { sessionId: second.sessionId, cols: 80, rows: 24 }
+    ])
 
     // Reload detaches; the reopening window sees and adopts both under their original ids.
     sessions.detachOwner(1)
-    expect(sessions.listSessions('t1', 2)).toEqual([first.sessionId, second.sessionId])
+    expect(sessions.listSessions('t1', 2).map(({ sessionId }) => sessionId)).toEqual([
+      first.sessionId,
+      second.sessionId
+    ])
     const reattached = await sessions.open('t1', 2, SIZES, () => true)
     expect(reattached).toEqual({ ok: true, sessionId: first.sessionId })
 
@@ -258,7 +275,9 @@ describe('DirectSshTerminalSessions', () => {
       reason: 'already-open'
     })
     sessions.detachOwner(1)
-    expect(sessions.listSessions('t1', 2)).toEqual([open.sessionId])
+    expect(sessions.listSessions('t1', 2).map(({ sessionId }) => sessionId)).toEqual([
+      open.sessionId
+    ])
   })
 
   it('applies the attaching xterm size and drains acks before any pause', async () => {

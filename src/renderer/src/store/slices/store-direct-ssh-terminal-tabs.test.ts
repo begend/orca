@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { buildWorkspaceSessionPayload } from '@/lib/workspace-session'
 import { safeParseWorkspaceSession } from '../../../../shared/workspace-session-schema'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../../shared/constants'
+import { toDirectSshPtyId } from '../../../../shared/direct-ssh-pty-id'
 import { createTestStore, makeWorktree, seedStore } from './store-test-helpers'
 import { createStoreCascadesMockApi } from './store-cascades-test-harness'
 
@@ -53,6 +54,26 @@ describe('direct-SSH canonical terminal tabs', () => {
       directSsh: { targetId: 'host-b' }
     })
 
+    const leafId = store.getState().terminalLayoutsByTabId[tab.id]?.activeLeafId
+    const directPtyId = toDirectSshPtyId('session-1')
+    store.setState({
+      tabsByWorktree: {
+        ...store.getState().tabsByWorktree,
+        [wt]: store
+          .getState()
+          .tabsByWorktree[wt]!.map((entry) =>
+            entry.id === tab.id ? { ...entry, ptyId: directPtyId } : entry
+          )
+      },
+      ptyIdsByTabId: { ...store.getState().ptyIdsByTabId, [tab.id]: [directPtyId] }
+    })
+    if (leafId) {
+      store.getState().setTabLayout(tab.id, {
+        ...store.getState().terminalLayoutsByTabId[tab.id]!,
+        ptyIdsByLeafId: { [leafId]: directPtyId }
+      })
+    }
+
     const payload = buildWorkspaceSessionPayload(store.getState())
     const parsed = safeParseWorkspaceSession(JSON.parse(JSON.stringify(payload)))
     expect(parsed).not.toBeNull()
@@ -60,6 +81,9 @@ describe('direct-SSH canonical terminal tabs', () => {
       ? parsed.data.tabsByWorktree[wt]?.find((entry) => entry.id === tab.id)
       : undefined
     expect(restored?.directSsh).toEqual({ targetId: 'host-b' })
+    expect(restored?.ptyId).toBeNull()
+    expect(payload.terminalLayoutsByTabId[tab.id]?.ptyIdsByLeafId).toBeUndefined()
+    expect(payload.activeWorktreeIdsOnShutdown).not.toContain(wt)
   })
 
   it('rejects the descriptor on ordinary tabs and keeps local shells provider-backed', () => {

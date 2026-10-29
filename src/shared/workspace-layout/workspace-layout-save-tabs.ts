@@ -3,6 +3,7 @@
 import type { ExecutionHostId } from '../execution-host'
 import type { Tab } from '../tab-types'
 import type { TerminalLayoutSnapshot, TerminalTab } from '../terminal-tab-types'
+import { isDirectSshPtyId } from '../direct-ssh-pty-id'
 import { pickStoredFields } from './stored-record-fields'
 import { collectLayoutLeafIdsInOrder } from './terminal-pane-tree'
 import type { DesktopLayoutView, LayoutContentFacts } from './workspace-layout-beside'
@@ -38,7 +39,8 @@ function rowPtyId(tab: LayoutTerminalTab, scope: WorkspaceSaveScope): string | n
   const bound = [...(focused && leafIds.includes(focused) ? [focused] : []), ...leafIds].find(
     (leafId) => scope.leaves[leafId]?.ptyId !== undefined
   )
-  return bound === undefined ? null : scope.leaves[bound]!.ptyId!
+  const ptyId = bound === undefined ? null : scope.leaves[bound]!.ptyId!
+  return tab.terminal.directSsh && isDirectSshPtyId(ptyId) ? null : ptyId
 }
 
 /** The one live title, written as both the row title and the tab-bar label. */
@@ -71,7 +73,8 @@ export function saveTerminalRow(
       'shellOverride',
       'forceHostRuntime',
       'startupCwd',
-      'launchAgent'
+      'launchAgent',
+      'directSsh'
     ])
   }
 }
@@ -137,7 +140,10 @@ export function saveTerminalLayout(
         : (leafIds[0] ?? null),
     expandedLeafId: expandedLeafId && leafIds.includes(expandedLeafId) ? expandedLeafId : null,
     ...pickStoredFields(panes, ['chatLeafId']),
-    ptyIdsByLeafId: byLeaf(leafIds, (leafId) => leaves[leafId]?.ptyId),
+    ptyIdsByLeafId: byLeaf(leafIds, (leafId) => {
+      const ptyId = leaves[leafId]?.ptyId
+      return tab.terminal.directSsh && isDirectSshPtyId(ptyId) ? undefined : ptyId
+    }),
     buffersByLeafId: byLeaf(leafIds, (leafId) => facts.scrollback[leafId]?.buffer),
     scrollbackRefsByLeafId: byLeaf(leafIds, (leafId) => facts.scrollback[leafId]?.scrollbackRef),
     titlesByLeafId: byLeaf(leafIds, (leafId) => leaves[leafId]?.title),

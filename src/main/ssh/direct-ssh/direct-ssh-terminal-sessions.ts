@@ -8,6 +8,7 @@ import type { ClientChannel, PseudoTtyOptions, ShellOptions } from 'ssh2'
 import type { SshConnectionState } from '../../../shared/ssh-types'
 import type {
   PlainSshTerminalEvent,
+  PlainSshTerminalListedSession,
   PlainSshTerminalOpenResult
 } from '../../../shared/plain-ssh-terminal'
 import {
@@ -15,6 +16,7 @@ import {
   RESUME_BELOW_UNACKED,
   TERM,
   clampSize,
+  paneIdentityOf,
   type PlainSshTerminalSink,
   type TerminalSession
 } from './direct-ssh-terminal-session-record'
@@ -51,7 +53,14 @@ export class DirectSshTerminalSessions {
   async open(
     targetId: string,
     owner: number,
-    request: { cols: unknown; rows: unknown; newSession?: unknown; sessionId?: unknown },
+    request: {
+      cols: unknown
+      rows: unknown
+      newSession?: unknown
+      sessionId?: unknown
+      tabId?: unknown
+      leafId?: unknown
+    },
     sink: PlainSshTerminalSink
   ): Promise<DirectSshTerminalOpenResult> {
     const connection = this.deps.getConnection(targetId)
@@ -60,12 +69,7 @@ export class DirectSshTerminalSessions {
     }
     const existing = this.sessionsForTarget(targetId)
     // One live window owns a host's shells; detached ones wait for any window to adopt.
-    if (
-      existing.some(
-        (session) =>
-          session.owner !== null && session.owner !== owner && this.deps.isOwnerLive(session.owner)
-      )
-    ) {
+    if (this.anotherLiveWindowOwns(existing, owner)) {
       return { ok: false, reason: 'already-open' }
     }
     if (typeof request.sessionId === 'string') {
@@ -88,6 +92,7 @@ export class DirectSshTerminalSessions {
     const session: TerminalSession = {
       id: randomUUID(),
       targetId,
+      ...paneIdentityOf(request),
       owner,
       sink,
       channel: null,
@@ -125,17 +130,17 @@ export class DirectSshTerminalSessions {
   }
 
   /** Sessions the window may see: none while another live window owns any of the host's shells. */
-  listSessions(targetId: string, owner: number): string[] {
+  listSessions(targetId: string, owner: number): PlainSshTerminalListedSession[] {
     const existing = this.sessionsForTarget(targetId)
-    if (
-      existing.some(
-        (session) =>
-          session.owner !== null && session.owner !== owner && this.deps.isOwnerLive(session.owner)
-      )
-    ) {
+    if (this.anotherLiveWindowOwns(existing, owner)) {
       return []
     }
-    return existing.map((session) => session.id)
+    return existing.map((session) => ({
+      sessionId: session.id,
+      ...paneIdentityOf(session),
+      cols: session.cols,
+      rows: session.rows
+    }))
   }
 
   write(sessionId: unknown, owner: number, data: unknown): void {
@@ -214,18 +219,18 @@ export class DirectSshTerminalSessions {
   }
 
   private sessionsForTarget(targetId: string): TerminalSession[] {
-    const ids = this.byTarget.get(targetId)
-    if (!ids) {
-      return []
-    }
-    const sessions: TerminalSession[] = []
-    for (const id of ids) {
+    return [...(this.byTarget.get(targetId) ?? [])].flatMap((id) => {
       const session = this.sessions.get(id)
-      if (session) {
-        sessions.push(session)
-      }
-    }
-    return sessions
+      return session ? [session] : []
+    })
+  }
+
+  /** One live window owns a host's shells; detached sessions wait for any window to adopt. */
+  private anotherLiveWindowOwns(sessions: TerminalSession[], owner: number): boolean {
+    return sessions.some(
+      (session) =>
+        session.owner !== null && session.owner !== owner && this.deps.isOwnerLive(session.owner)
+    )
   }
 
   private indexTarget(session: TerminalSession): void {

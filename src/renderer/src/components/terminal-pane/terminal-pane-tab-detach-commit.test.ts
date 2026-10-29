@@ -222,6 +222,7 @@ describe('detachTerminalPaneToTab rolls a committed move forward', () => {
     'commits the move in main before the target tab exists, using the same tab id',
     async () => {
       const store = createStore()
+      store.tabsByWorktree[WORKTREE_ID]![0]!.directSsh = { targetId: 'build-box' }
       let release!: () => void
       const commitMove = vi.fn(
         (_request: TerminalLeafMoveRequest) =>
@@ -248,7 +249,11 @@ describe('detachTerminalPaneToTab rolls a committed move forward', () => {
         WORKTREE_ID,
         TARGET_GROUP_ID,
         'powershell.exe',
-        expect.objectContaining({ id: request?.targetTabId, initialLeafId: LEAF_2 })
+        expect.objectContaining({
+          id: request?.targetTabId,
+          initialLeafId: LEAF_2,
+          directSsh: { targetId: 'build-box' }
+        })
       )
     }
   )

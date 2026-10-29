@@ -204,9 +204,10 @@ function applyMove(
     : movedLayout
 
   const latestStore = args.getStore()
-  const sourceShellOverride = latestStore.tabsByWorktree[worktreeId]?.find(
+  const sourceTab = latestStore.tabsByWorktree[worktreeId]?.find(
     (candidate) => candidate.id === sourceTabId
-  )?.shellOverride
+  )
+  const sourceShellOverride = sourceTab?.shellOverride
   // Switch point: the reply runs after the frame with main's new tab, which may have drawn it.
   const frameDrawn =
     ORCA_LAYOUT_OWNER_IS_MAIN && mainMoved
@@ -218,6 +219,7 @@ function applyMove(
       id: targetTabId,
       activate: true,
       ...(detachedLayout.chatLeafId ? { viewMode: 'chat' as const } : {}),
+      ...(sourceTab?.directSsh ? { directSsh: sourceTab.directSsh } : {}),
       initialPtyId: ptyId ?? undefined,
       ...(!ptyId
         ? {

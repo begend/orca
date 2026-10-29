@@ -37,7 +37,7 @@ describe('migrateWorkspaceSessionSshTargetId', () => {
       tabsByWorktree: {
         'r1::/wt': [
           makeTab({ id: 'tab1', ptyId: `ssh:${OLD_ID}@@pty-3` }),
-          makeTab({ id: 'tab2', ptyId: 'local-pty-7' }),
+          makeTab({ id: 'tab2', ptyId: 'local-pty-7', directSsh: { targetId: OLD_ID } }),
           makeTab({ id: 'tab3', ptyId: `ssh:other-target@@pty-1` })
         ]
       },
@@ -60,6 +60,7 @@ describe('migrateWorkspaceSessionSshTargetId', () => {
     const tabs = session.tabsByWorktree['r1::/wt']
     expect(tabs[0].ptyId).toBe(`ssh:${NEW_ID}@@pty-3`)
     expect(tabs[1].ptyId).toBe('local-pty-7')
+    expect(tabs[1].directSsh).toEqual({ targetId: NEW_ID })
     expect(tabs[2].ptyId).toBe(`ssh:other-target@@pty-1`)
     expect(session.terminalLayoutsByTabId.tab1.ptyIdsByLeafId).toEqual({
       'leaf-1': `ssh:${NEW_ID}@@pty-3`

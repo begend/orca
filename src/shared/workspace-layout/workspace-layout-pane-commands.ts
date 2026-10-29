@@ -239,7 +239,8 @@ export function movePaneToNewTab(
     terminal: {
       defaultTitle: `Terminal ${ordinal}`,
       ...(startupCwd ? { startupCwd } : {}),
-      ...(tab.terminal.shellOverride ? { shellOverride: tab.terminal.shellOverride } : {})
+      ...(tab.terminal.shellOverride ? { shellOverride: tab.terminal.shellOverride } : {}),
+      ...(tab.terminal.directSsh ? { directSsh: tab.terminal.directSsh } : {})
     },
     panes: {
       root: { type: 'leaf', leafId },

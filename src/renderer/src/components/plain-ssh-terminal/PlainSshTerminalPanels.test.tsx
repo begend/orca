@@ -57,7 +57,7 @@ let emit: (event: PlainSshTerminalEvent) => void = () => {}
 const open = vi.fn<(args: PlainSshTerminalOpenRequest) => Promise<PlainSshTerminalOpenResult>>()
 const close = vi.fn()
 const ack = vi.fn()
-const list = vi.fn<() => Promise<{ sessionIds: string[] }>>()
+const list = vi.fn<() => Promise<{ sessions: [] }>>()
 // Every tab's terminal subscribes; events must reach all of them, not just the last subscriber.
 const eventSubscribers = new Set<(event: PlainSshTerminalEvent) => void>()
 
@@ -67,7 +67,7 @@ beforeEach(() => {
   close.mockReset()
   ack.mockReset()
   list.mockReset()
-  list.mockResolvedValue({ sessionIds: [] })
+  list.mockResolvedValue({ sessions: [] })
   eventSubscribers.clear()
   emit = (event) => {
     for (const subscriber of eventSubscribers) {

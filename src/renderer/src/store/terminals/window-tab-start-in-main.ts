@@ -41,6 +41,8 @@ export function windowTabStartsInMain(state: AppState, tab: TerminalTab): boolea
   return (
     !tab.ptyId &&
     !tab.forceHostRuntime &&
+    // Direct sessions are owned by DirectSshTerminalSessions and connect through the pane transport.
+    !tab.directSsh &&
     // SSH and WSL starts keep the window's spawn and its prompts until L252.
     !getRemoteConnectionIdForWorktree(state, tab.worktreeId) &&
     !worktreeUsesWslPath(state, tab.worktreeId) &&

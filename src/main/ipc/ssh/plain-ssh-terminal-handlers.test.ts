@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => {
     resize: vi.fn(),
     close: vi.fn(),
     ack: vi.fn(),
-    listSessions: vi.fn((): string[] => []),
+    listSessions: vi.fn((): { sessionId: string; cols: number; rows: number }[] => []),
     open: vi.fn()
   }
   return {
@@ -131,13 +131,22 @@ describe('plain SSH terminal IPC dispatch', () => {
       targetId: 't1',
       cols: 100,
       rows: 30,
-      newSession: true
+      newSession: true,
+      tabId: 'tab-1',
+      leafId: 'leaf-1'
     })
 
     expect(mocks.directSessions.open).toHaveBeenCalledWith(
       't1',
       7,
-      { cols: 100, rows: 30, newSession: true, sessionId: undefined },
+      {
+        cols: 100,
+        rows: 30,
+        newSession: true,
+        sessionId: undefined,
+        tabId: 'tab-1',
+        leafId: 'leaf-1'
+      },
       expect.any(Function)
     )
     expect(result).toEqual({ ok: true, sessionId: 'd1', label: 't1' })
@@ -145,16 +154,22 @@ describe('plain SSH terminal IPC dispatch', () => {
 
   it('lists adoptable direct sessions only for direct targets', () => {
     const handlers = ipcChannelHandlers()
-    mocks.directSessions.listSessions.mockReturnValue(['d1', 'd2'])
+    mocks.directSessions.listSessions.mockReturnValue([
+      { sessionId: 'd1', cols: 100, rows: 30 },
+      { sessionId: 'd2', cols: 80, rows: 24 }
+    ])
 
     expect(handlers.get('plainSsh:list')!(ipcEvent(7), { targetId: 't1' })).toEqual({
-      sessionIds: ['d1', 'd2']
+      sessions: [
+        { sessionId: 'd1', cols: 100, rows: 30 },
+        { sessionId: 'd2', cols: 80, rows: 24 }
+      ]
     })
     expect(mocks.directSessions.listSessions).toHaveBeenCalledWith('t1', 7)
 
     mocks.directTarget.isDirectSshTarget.mockReturnValue(false)
     expect(handlers.get('plainSsh:list')!(ipcEvent(7), { targetId: 't1' })).toEqual({
-      sessionIds: []
+      sessions: []
     })
     expect(mocks.directSessions.listSessions).toHaveBeenCalledTimes(1)
   })

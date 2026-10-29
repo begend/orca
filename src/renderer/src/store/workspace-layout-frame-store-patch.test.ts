@@ -95,6 +95,49 @@ describe('laying frame slices over the store', () => {
     expect(patch.unifiedTabsByWorktree?.[GIT_KEY]?.map((tab) => tab.id)).not.toContain('tab-shell')
   })
 
+  it('keeps a direct SSH descriptor while an older layout owner omits that creation fact', async () => {
+    const { state, session, frame } = await restored()
+    const directState: AppState = {
+      ...state,
+      tabsByWorktree: {
+        ...state.tabsByWorktree,
+        [GIT_KEY]: state.tabsByWorktree[GIT_KEY]!.map((tab) =>
+          tab.id === 'tab-shell' ? { ...tab, directSsh: { targetId: 'build-box' } } : tab
+        )
+      }
+    }
+
+    const patch = patchFor(directState, session, frame)
+    const next = { ...directState, ...patch }
+
+    expect(next.tabsByWorktree[GIT_KEY]?.find((tab) => tab.id === 'tab-shell')?.directSsh).toEqual({
+      targetId: 'build-box'
+    })
+  })
+
+  it('keeps live direct SSH leaf bindings across a full frame rebuild', async () => {
+    const { state, session, frame } = await restored()
+    const layout = state.terminalLayoutsByTabId['tab-shell']!
+    const leafId = layout.activeLeafId!
+    const directState: AppState = {
+      ...state,
+      terminalLayoutsByTabId: {
+        ...state.terminalLayoutsByTabId,
+        'tab-shell': {
+          ...layout,
+          ptyIdsByLeafId: { ...layout.ptyIdsByLeafId, [leafId]: 'direct-ssh:session-1' }
+        }
+      }
+    }
+
+    const patch = patchFor(directState, session, frame)
+    const next = { ...directState, ...patch }
+
+    expect(next.terminalLayoutsByTabId['tab-shell']?.ptyIdsByLeafId?.[leafId]).toBe(
+      'direct-ssh:session-1'
+    )
+  })
+
   it('keeps the pane layout of a tab the window’s own pane command holds, until main drops the tab', async () => {
     const { state, session, frame } = await restored()
     const newRatios: PublishedWorkspaceLayout = {
