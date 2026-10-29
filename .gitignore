@@ -98,6 +98,8 @@ docs/**
 !docs/styleguide/
 !docs/styleguide/**
 !docs/reference/
+!docs/architecture/
+!docs/architecture/**
 !docs/reference/cross-platform-support.md
 !docs/reference/git-workflow.md
 !docs/reference/test-antipatterns.md
