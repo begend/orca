@@ -82,6 +82,18 @@ describe('getOrphanTerminalIds reconnect-map liveness', () => {
     expect(getOrphanTerminalIds(state, 'wt-1')).toContain('dead')
   })
 
+  it('does not orphan a direct SSH row while its unified identity is briefly unavailable', () => {
+    const state = makeState({
+      tabsByWorktree: {
+        'wt-1': [makeTab({ id: 'direct-tab', ptyId: null, directSsh: { targetId: 'build-box' } })]
+      },
+      ptyIdsByTabId: { 'direct-tab': [] },
+      unifiedTabsByWorktree: { 'wt-1': [] }
+    })
+
+    expect(getOrphanTerminalIds(state, 'wt-1')).not.toContain('direct-tab')
+  })
+
   it('does not orphan a tab whose PTY loss is unverified', () => {
     const state = makeState({
       tabsByWorktree: { 'wt-1': [makeTab({ id: 'host-lost', ptyId: null })] },

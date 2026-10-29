@@ -68,6 +68,11 @@ export function getOrphanTerminalIds(
         if (state.unverifiedPtyLossTabIds[tab.id]) {
           return false
         }
+        // Direct host terminals have no daemon/reconnect-map PTY while their registry session opens
+        // or is detached. Their canonical descriptor, not a provider id, proves ownership.
+        if (tab.directSsh) {
+          return false
+        }
         return !terminalTabHasReconnectablePty(state, tab.id, tab.ptyId)
       })
       .map((tab) => tab.id)

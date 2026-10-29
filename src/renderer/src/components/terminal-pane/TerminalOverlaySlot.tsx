@@ -67,6 +67,15 @@ export const TerminalOverlaySlot = memo(function TerminalOverlaySlot({
         if (consumeSuppressedPtyExit(ptyId)) {
           return
         }
+        // Direct SSH session lifecycle is owned by its transport registry. A remote shell's normal
+        // exit clears the pane binding but must leave the canonical tab/target identity visible.
+        if (
+          useAppStore
+            .getState()
+            .tabsByWorktree?.[worktreeId]?.find((tab) => tab.id === terminalTabId)?.directSsh
+        ) {
+          return
+        }
         // A synthetic host-loss exit is not evidence that the user closed the tab.
         if (exitCode !== undefined && !isProvenProcessExit(exitCode)) {
           useAppStore.getState().markUnverifiedPtyLoss(terminalTabId)
